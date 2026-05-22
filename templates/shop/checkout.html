@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}Transaction Finalization | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    
+    <div class="mb-5 text-center text-md-start">
+        <h1 class="display-font h2 mb-1">Checkout Terminal</h1>
+        <p class="text-muted">Select your preferred logistical route to wrap up this transaction.</p>
+    </div>
+
+    <form id="checkout-form" method="POST">
+        {% csrf_token %}
+
+        <div class="row g-5">
+            <!-- Column 1: Shipping & Logistics -->
+            <div class="col-lg-7">
+                <div class="d-flex flex-column gap-4">
+                    
+                    <!-- Step 1: Shipping Address Selection -->
+                    <div class="card border-0 bg-transparent">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="display-font mb-0 text-gradient" style="background: var(--primary-glow); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"><i class="fa-solid fa-map-location-dot me-2"></i> 1. Destinational Route</h4>
+                            <a href="{% url 'shipping_address_add' %}" class="btn btn-outline-premium py-2 px-3 btn-sm rounded-3"><i class="fa-solid fa-plus small me-1"></i> Add Route</a>
+                        </div>
+
+                        {% if addresses %}
+                        <div class="row g-3">
+                            {% for address in addresses %}
+                            <div class="col-md-6">
+                                <input type="radio" name="address_id" class="btn-check" id="address-{{ address.id }}" value="{{ address.id }}" {% if forloop.first %}checked{% endif %} required>
+                                <label class="card border-0 premium-card shadow-sm p-4 w-100 cursor-pointer h-100 d-flex flex-column btn-outline-address-box" for="address-{{ address.id }}">
+                                    <div class="d-flex justify-content-between mb-2 align-items-start">
+                                        <h6 class="fw-bold mb-0">{{ address.full_name }}</h6>
+                                        <div class="selection-dot border rounded-circle" style="width: 18px; height: 18px;"></div>
+                                    </div>
+                                    <p class="text-muted small mb-1">{{ address.address_line1 }}</p>
+                                    <p class="text-muted small mt-auto mb-0">{{ address.city }}, {{ address.state }} - {{ address.postal_code }}</p>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning bg-warning-subtle border-warning border-1 rounded-4 p-4 d-flex align-items-center gap-3" role="alert">
+                            <i class="fa-solid fa-triangle-exclamation fs-4 text-warning"></i>
+                            <div>
+                                <h6 class="alert-heading fw-bold mb-1">No Logistics Routes Available</h6>
+                                <p class="mb-0 small">You must configure at least one delivery address before finalizing transaction.</p>
+                                <a href="{% url 'shipping_address_add' %}" class="btn btn-warning py-2 px-3 btn-sm mt-3 rounded-3 border-0 text-dark fw-bold shadow-sm">Add Route Now</a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <hr class="border-secondary opacity-10">
+
+                    <!-- Step 2: Simulated Secure Payment Gateway Layer -->
+                    <div class="card border-0 bg-transparent mt-2">
+                        <h4 class="display-font mb-3 text-gradient" style="background: var(--primary-glow); -webkit-background-clip: text; -webkit-text-fill-color: transparent;"><i class="fa-solid fa-shield-halved me-2"></i> 2. Gateway Security</h4>
+                        
+                        <div class="card border-0 premium-card p-4 shadow-sm bg-white">
+                            <div class="d-flex align-items-center gap-3 mb-4">
+                                <div class="bg-light rounded-3 p-2 text-primary"><i class="fa-brands fa-cc-stripe fs-1"></i></div>
+                                <div>
+                                    <h6 class="fw-bold mb-0">Stripe / Razorpay Payment Emulator</h6>
+                                    <p class="text-muted small mb-0">Safe-encrypted secure dummy processor.</p>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-muted">Simulated Card Number</label>
+                                <div class="input-group border-0 shadow-sm rounded-3 overflow-hidden">
+                                    <span class="input-group-text border-0 bg-light px-3 text-muted"><i class="fa-solid fa-credit-card"></i></span>
+                                    <input type="text" class="form-control border-0 bg-light py-3" value="4242 4242 4242 4242" readonly>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted">Expiry</label>
+                                    <input type="text" class="form-control border-0 bg-light py-3 text-center" value="12 / 28" readonly>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted">CVC Code</label>
+                                    <input type="text" class="form-control border-0 bg-light py-3 text-center" value="999" readonly>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Column 2: Cumulative Breakdown Summary -->
+            <div class="col-lg-5">
+                <div class="card border-0 premium-card shadow-lg p-4 p-md-5 bg-white sticky-top" style="top: 100px;">
+                    <h4 class="display-font mb-4 pb-2 border-bottom">Terminal Ledger</h4>
+                    
+                    <!-- Summary Items loop -->
+                    <div class="d-flex flex-column gap-3 mb-4 overflow-auto" style="max-height: 250px;">
+                        {% for item in cart.items.all %}
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-3 border-0 bg-light d-flex p-1 overflow-hidden" style="width: 50px; height: 50px;">
+                                {% if item.product.image %}
+                                    <img src="{% if item.product.image %}{{ item.product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="img-fluid object-fit-cover rounded-2" alt="">
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1 text-truncate">
+                                <h6 class="fw-bold mb-0 text-truncate" style="font-size: 14px;">{{ item.product.name }}</h6>
+                                <small class="text-muted">Qty: {{ item.quantity }}</small>
+                            </div>
+                            <span class="fw-semibold small text-dark">₹{{ item.get_subtotal }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <hr class="border-secondary opacity-10 mb-4">
+
+                    <div class="d-flex flex-column gap-2 mb-4 text-muted small">
+                        <div class="d-flex justify-content-between">
+                            <span>Ledger Value</span>
+                            <span class="text-dark fw-semibold">₹{{ cart.get_total }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Global Logistics Routing</span>
+                            <span class="text-success fw-bold">Free Tier</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-4 border-top border-secondary border-opacity-10 pt-3">
+                        <h5 class="fw-bold">Ledger Total:</h5>
+                        <h4 class="fw-bold mb-0" style="color: var(--accent-color);">₹{{ cart.get_total }}</h4>
+                    </div>
+
+                    {% if addresses %}
+                        <button type="submit" class="btn btn-glow w-100 py-3 fw-bold text-uppercase fs-7">
+                            Validate and Clear Ledger <i class="fa-solid fa-circle-check ms-2"></i>
+                        </button>
+                    {% else %}
+                        <button type="button" class="btn btn-secondary w-100 py-3 fw-bold cursor-not-allowed" disabled>
+                            Require Valid Route
+                        </button>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-center align-items-center gap-3 text-muted small mt-3">
+                        <span><i class="fa-solid fa-fingerprint text-success me-1"></i> Encryption</span>
+                        <span><i class="fa-solid fa-headset text-info me-1"></i> 24/7 Priority Concierge</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+    /* Advanced Checkbox card hover override */
+    .btn-check:checked + .btn-outline-address-box {
+        border: 2px solid var(--accent-color) !important;
+        background: rgba(99, 102, 241, 0.03);
+    }
+    .btn-check:checked + .btn-outline-address-box .selection-dot {
+        background: var(--accent-color);
+        border-color: var(--accent-color) !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+    .cursor-not-allowed {
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+    // Intercept the checkout form submission to trigger Razorpay Modal
+    const checkoutForm = document.getElementById('checkout-form');
+    if (checkoutForm) {
+        checkoutForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Get selected shipping address
+            const selectedAddress = document.querySelector('input[name="address_id"]:checked');
+            if (!selectedAddress) {
+                alert("Please select a shipping address.");
+                return;
+            }
+            
+            const addressId = selectedAddress.value;
+            const submitButton = checkoutForm.querySelector('button[type="submit"]');
+            
+            // Set loading button state
+            const originalBtnHtml = submitButton.innerHTML;
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Initiating Secure Gateway...';
+            
+            try {
+                // 1. Post address selection to create pending order
+                const response = await fetch("{% url 'checkout' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        address_id: addressId
+                    })
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    alert(data.error || "Failed to initiate payment.");
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalBtnHtml;
+                    return;
+                }
+                
+                // 2. Open Razorpay payment dialog overlay or Sandbox Emulator
+                if (data.sandbox_mode) {
+                    const confirmSandbox = confirm("🎁 Sandbox Emulator Active:\n\nNo real API Keys configured. Would you like to simulate a successful payment transaction?");
+                    if (confirmSandbox) {
+                        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Simulating Signature Verification...';
+                        setTimeout(async function() {
+                            try {
+                                const verifyResponse = await fetch("{% url 'checkout_verify' %}", {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': '{{ csrf_token }}'
+                                    },
+                                    body: JSON.stringify({
+                                        razorpay_order_id: data.razorpay_order_id,
+                                        razorpay_payment_id: "pay_sandbox_" + Math.random().toString(36).substring(2, 10).toUpperCase(),
+                                        razorpay_signature: "sig_sandbox_verified",
+                                        order_id: data.order_id
+                                    })
+                                });
+                                
+                                const verifyData = await verifyResponse.json();
+                                if (verifyData.success) {
+                                    window.location.href = verifyData.redirect_url;
+                                } else {
+                                    alert(verifyData.error || "Sandbox checkout failed.");
+                                    submitButton.disabled = false;
+                                    submitButton.innerHTML = originalBtnHtml;
+                                }
+                            } catch (err) {
+                                alert("Failed sandbox verification.");
+                                submitButton.disabled = false;
+                                submitButton.innerHTML = originalBtnHtml;
+                            }
+                        }, 1000);
+                    } else {
+                        alert("Transaction cancelled by user. Sandbox funds not cleared.");
+                        submitButton.disabled = false;
+                        submitButton.innerHTML = originalBtnHtml;
+                    }
+                    return;
+                }
+
+                // 2. Open Razorpay payment dialog overlay (For Real Credentials)
+                const options = {
+                    "key": data.razorpay_key_id,
+                    "amount": data.amount,
+                    "currency": data.currency,
+                    "name": "Shopping_App",
+                    "description": "Secure Checkout Ledger Payment",
+                    "order_id": data.razorpay_order_id,
+                    "handler": async function (paymentResponse) {
+                        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying Cryptographic Signature...';
+                        
+                        try {
+                            // 3. Post verification details back to verification view
+                            const verifyResponse = await fetch("{% url 'checkout_verify' %}", {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token }}'
+                                },
+                                body: JSON.stringify({
+                                    razorpay_order_id: paymentResponse.razorpay_order_id,
+                                    razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                                    razorpay_signature: paymentResponse.razorpay_signature,
+                                    order_id: data.order_id
+                                })
+                            });
+                            
+                            const verifyData = await verifyResponse.json();
+                            if (verifyData.success) {
+                                // Redirect to final order detail view
+                                window.location.href = verifyData.redirect_url;
+                            } else {
+                                alert(verifyData.error || "Payment signature verification failed.");
+                                submitButton.disabled = false;
+                                submitButton.innerHTML = originalBtnHtml;
+                            }
+                        } catch (err) {
+                            alert("Verification pipeline error. Please contact concierge support.");
+                            submitButton.disabled = false;
+                            submitButton.innerHTML = originalBtnHtml;
+                        }
+                    },
+                    "prefill": {
+                        "name": data.customer_name,
+                        "email": data.customer_email,
+                        "contact": data.customer_phone
+                    },
+                    "theme": {
+                        "color": "#6366F1"
+                    },
+                    "modal": {
+                        "ondismiss": function() {
+                            alert("Logistics check cancelled by user. Funds were not cleared.");
+                            submitButton.disabled = false;
+                            submitButton.innerHTML = originalBtnHtml;
+                        }
+                    }
+                };
+                
+                const rzp = new Razorpay(options);
+                rzp.open();
+                
+            } catch (err) {
+                alert("Failed to reach payment gateway. Check connection and try again.");
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalBtnHtml;
+            }
+        });
+    }
+</script>
+{% endblock %}

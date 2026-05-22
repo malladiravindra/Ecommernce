@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="display-font h3 mb-1">Store Dashboard</h2>
+            <p class="text-muted small mb-0">Welcome back, {{ request.user.username }}</p>
+        </div>
+        <a href="/admin/" class="btn btn-outline-primary" target="_blank">
+            <i class="fa-solid fa-gear me-2"></i> Open Advanced Admin
+        </a>
+    </div>
+    
+    <!-- Top Statistics Cards -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-4">
+            <div class="card premium-card border-0 shadow-sm p-4 bg-white h-100">
+                <h6 class="text-muted text-uppercase tracking-widest mb-2" style="font-size: 12px;">Total Orders</h6>
+                <h2 class="fw-bold mb-0 text-dark">{{ total_orders }}</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card premium-card border-0 shadow-sm p-4 bg-white h-100">
+                <h6 class="text-muted text-uppercase tracking-widest mb-2" style="font-size: 12px;">Total Products</h6>
+                <h2 class="fw-bold mb-0 text-dark">{{ total_products }}</h2>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card premium-card border-0 shadow-sm p-4 bg-white h-100">
+                <h6 class="text-muted text-uppercase tracking-widest mb-2" style="font-size: 12px;">Registered Users</h6>
+                <h2 class="fw-bold mb-0 text-dark">{{ total_users }}</h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Orders Table -->
+    <div class="card premium-card border-0 shadow-sm p-4 mb-4 bg-white">
+        <h5 class="fw-bold mb-4 display-font">Recent Transactions</h5>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light text-muted small text-uppercase tracking-widest">
+                    <tr>
+                        <th class="py-3">Order ID</th>
+                        <th class="py-3">Customer</th>
+                        <th class="py-3">Products</th>
+                        <th class="py-3">Total</th>
+                        <th class="py-3">Status</th>
+                        <th class="py-3">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="border-top-0">
+                    {% for order in recent_orders %}
+                    <tr>
+                        <td class="fw-semibold">#{{ order.id }}</td>
+                        <td>{{ order.user.username|default:"Guest" }}</td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                {% for item in order.items.all|slice:":2" %}
+                                    <span class="small text-truncate" style="max-width: 150px;" title="{{ item.product_name }}">{{ item.quantity }}x {{ item.product_name }}</span>
+                                {% endfor %}
+                                {% if order.items.count > 2 %}
+                                    <span class="small text-muted fst-italic">+{{ order.items.count|add:"-2" }} more item(s)</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="fw-bold">₹{{ order.total_price }}</td>
+                        <td><span class="badge bg-{% if order.status == 'Delivered' %}success{% elif order.status == 'Cancelled' %}danger{% else %}primary{% endif %} rounded-pill px-3 py-2">{{ order.status }}</span></td>
+                        <td class="text-muted small">{{ order.created_at|date:"M d, Y" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">No recent orders found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

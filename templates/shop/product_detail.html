@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ product.name }} | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-muted text-decoration-none">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'product_list' %}" class="text-muted text-decoration-none">Shop</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'product_list' %}?category={{ product.category.slug }}" class="text-muted text-decoration-none">{{ product.category.name }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row g-5 mb-5">
+        
+        <!-- Product Gallery -->
+        <div class="col-lg-6">
+            <div class="card premium-card border-0 overflow-hidden p-2 bg-light" style="min-height: 500px;">
+                <div class="d-flex align-items-center justify-content-center flex-grow-1 bg-white rounded-4 h-100">
+                    {% if product.image %}
+                        <img id="mainProductImg" src="{% if product.image %}{{ product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="img-fluid object-fit-contain" style="max-height: 500px;" alt="{{ product.name }}">
+                    {% else %}
+                        <i class="fa-solid fa-image fs-1 text-muted"></i>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Multi Image support row -->
+            {% if product.images.all %}
+            <div class="row g-2 mt-3">
+                <div class="col-3">
+                    <div class="card premium-card border-0 p-1 bg-white ratio ratio-1x1 cursor-pointer gallery-thumb-wrapper active-thumb" onclick="changeMainImg(this, '{% if product.image %}{{ product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}')">
+                        <img src="{% if product.image %}{{ product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="object-fit-cover rounded-3" alt="Thumbnail">
+                    </div>
+                </div>
+                {% for gal in product.images.all %}
+                <div class="col-3">
+                    <div class="card premium-card border-0 p-1 bg-white ratio ratio-1x1 cursor-pointer gallery-thumb-wrapper" onclick="changeMainImg(this, '{% if gal.image %}{{ gal.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}')">
+                        <img src="{% if gal.image %}{{ gal.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="object-fit-cover rounded-3" alt="Gallery">
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Product Purchase Actions Info -->
+        <div class="col-lg-6">
+            <div class="ps-lg-4 d-flex flex-column h-100">
+                <div class="mb-3">
+                    <span class="badge badge-glow px-3 py-2 rounded-pill text-uppercase fs-8">{{ product.category.name }}</span>
+                    {% if product.stock > 0 %}
+                        <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill border-0 ms-2 fs-8">In Stock ({{ product.stock }} left)</span>
+                    {% else %}
+                        <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill border-0 ms-2 fs-8">Sold Out</span>
+                    {% endif %}
+                </div>
+
+                <h1 class="display-5 fw-bold display-font mb-2">{{ product.name }}</h1>
+                
+                <div class="d-flex align-items-center gap-2 mb-4 text-warning">
+                    <div class="d-flex gap-1">
+                        {% for i in "12345" %}
+                            {% if forloop.counter <= product.average_rating %}
+                                <i class="fa-solid fa-star"></i>
+                            {% else %}
+                                <i class="fa-regular fa-star opacity-50"></i>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <span class="text-muted small mt-1">({{ product.average_rating|floatformat:1 }} Rating / {{ reviews.count }} customer reviews)</span>
+                </div>
+
+                <div class="mb-4">
+                    {% if product.discount_price %}
+                        <div class="d-flex align-items-end gap-3 mb-1">
+                            <h2 class="display-6 fw-bold text-accent mb-0" style="color: var(--accent-color);">₹{{ product.discount_price }}</h2>
+                            <h4 class="text-muted text-decoration-line-through mb-1 fw-normal">₹{{ product.price }}</h4>
+                        </div>
+                        <span class="text-success fw-bold small">You save ₹{{ product.price|floatformat:2|add:"-"|add:product.discount_price|floatformat:2|cut:"-" }} today!</span>
+                    {% else %}
+                        <h2 class="display-6 fw-bold mb-0" style="color: var(--accent-color);">₹{{ product.price }}</h2>
+                    {% endif %}
+                </div>
+
+                <hr class="border-secondary opacity-10 my-3">
+
+                <div class="product-description mb-4">
+                    <h6 class="fw-bold mb-2">Product Introspective:</h6>
+                    <p class="text-muted lh-lg">{{ product.description|linebreaksbr }}</p>
+                </div>
+
+                {% if product.stock > 0 %}
+                <!-- AJAX Cart Interactive Area -->
+                <div class="card border-0 bg-light p-4 rounded-4 mt-auto">
+                    <div class="d-flex flex-column gap-3">
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <div class="input-group border-0 bg-white rounded-3 shadow-sm" style="max-width: 140px;">
+                                <button class="btn text-muted border-0" type="button" onclick="adjustQty(-1)"><i class="fa-solid fa-minus fs-7"></i></button>
+                                <input type="number" id="productQty" class="form-control text-center border-0 fw-bold fs-6" value="1" min="1" max="{{ product.stock }}" readonly>
+                                <button class="btn text-muted border-0" type="button" onclick="adjustQty(1)"><i class="fa-solid fa-plus fs-7"></i></button>
+                            </div>
+                            
+                            <button onclick="addToCart({{ product.id }})" id="addToCartBtn" class="btn btn-glow flex-grow-1 py-3 fw-bold">
+                                <i class="fa-solid fa-cart-plus me-2"></i> Add to Collection
+                            </button>
+                        </div>
+                        
+                        <button onclick="toggleWishlist({{ product.id }})" id="detailWishlistBtn" class="btn {% if is_in_wishlist %}btn-danger{% else %}btn-outline-premium{% endif %} w-100 py-3 fw-semibold">
+                            <i class="fa-{% if is_in_wishlist %}solid{% else %}regular{% endif %} fa-heart me-2"></i> 
+                            {% if is_in_wishlist %}Assigned to Wishlist{% else %}Add to Wishlist{% endif %}
+                        </button>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-dark bg-dark border-0 text-white-50 rounded-4 p-4 mt-auto" role="alert">
+                    <i class="fa-solid fa-circle-info me-2 text-warning"></i> We are currently restocking this item. Join the newsletter to receive restocking alert notifications.
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Reviews & Ratings Breakdown -->
+    <div class="row mt-5 py-5">
+        <div class="col-lg-8">
+            <h3 class="display-font mb-4">Client Testimonials ({{ reviews.count }})</h3>
+            
+            <!-- List of reviews -->
+            <div class="d-flex flex-column gap-4 mb-5" id="reviewsContainer">
+                {% for r in reviews %}
+                <div class="card border-0 p-4 premium-card shadow-sm">
+                    <div class="d-flex justify-content-between mb-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center text-white" style="width: 35px; height: 35px;">
+                                {{ r.user.username|make_list|first|upper }}
+                            </div>
+                            <div>
+                                <h6 class="fw-bold mb-0">{{ r.user.username }}</h6>
+                                <small class="text-muted fs-8">{{ r.created_at|date:"F d, Y" }}</small>
+                            </div>
+                        </div>
+                        <div class="text-warning fs-8">
+                            {% for idx in "12345" %}
+                                {% if forloop.counter <= r.rating %}
+                                    <i class="fa-solid fa-star"></i>
+                                {% else %}
+                                    <i class="fa-regular fa-star opacity-50"></i>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <p class="text-muted mt-2 mb-0 lh-base">"{{ r.comment }}"</p>
+                </div>
+                {% empty %}
+                <div class="alert bg-light border-0 text-center py-4 text-muted rounded-4">
+                    No client testimonials recorded yet. Be the first to share your thoughts!
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Create a Review form -->
+            {% if user.is_authenticated %}
+            <div class="card border-0 p-4 p-md-5 premium-card shadow-sm">
+                <h5 class="fw-bold mb-2">Contribute a Review</h5>
+                <p class="text-muted small mb-4">Provide honest feedback to assist other clients.</p>
+                
+                <form id="reviewForm" onsubmit="submitReview(event)">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Rating Scale</label>
+                        <div class="d-flex gap-2 text-muted fs-4" id="starSelector">
+                            <i class="fa-regular fa-star star-opt cursor-pointer" data-val="1" onclick="selectStars(1)"></i>
+                            <i class="fa-regular fa-star star-opt cursor-pointer" data-val="2" onclick="selectStars(2)"></i>
+                            <i class="fa-regular fa-star star-opt cursor-pointer" data-val="3" onclick="selectStars(3)"></i>
+                            <i class="fa-regular fa-star star-opt cursor-pointer" data-val="4" onclick="selectStars(4)"></i>
+                            <i class="fa-regular fa-star star-opt cursor-pointer" data-val="5" onclick="selectStars(5)"></i>
+                        </div>
+                        <input type="hidden" name="rating" id="selectedRating" value="0" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="reviewComment" class="form-label small fw-bold text-muted">Elaborate on Experience</label>
+                        <textarea name="comment" id="reviewComment" rows="4" class="form-control form-control-premium w-100" placeholder="Share what you enjoyed most about this masterpiece..." required></textarea>
+                    </div>
+                    
+                    <input type="hidden" id="reviewProductId" value="{{ product.id }}">
+                    <button type="submit" class="btn btn-glow rounded-3 py-3 px-4 fw-semibold">Submit Reflection</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="card border-0 p-4 bg-light rounded-4 text-center">
+                <p class="text-muted mb-3">You must have an active account to submit evaluations.</p>
+                <div>
+                    <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-outline-premium py-2 px-4 btn-sm">Sign In / Log In</a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+    .cursor-pointer { cursor: pointer; }
+    .star-opt:hover, .star-opt.active {
+        color: #f59e0b;
+        font-weight: 900 !important;
+    }
+    .gallery-thumb-wrapper {
+        border: 2px solid transparent !important;
+        transition: all 0.2s ease;
+    }
+    .gallery-thumb-wrapper:hover {
+        border-color: var(--accent-color) !important;
+        opacity: 0.9;
+    }
+    .gallery-thumb-wrapper.active-thumb {
+        border: 2px solid var(--accent-color) !important;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+    }
+</style>
+<script>
+    // Swapping gallery views
+    function changeMainImg(element, url) {
+        document.getElementById('mainProductImg').src = url;
+        const thumbs = document.querySelectorAll('.gallery-thumb-wrapper');
+        thumbs.forEach(t => t.classList.remove('active-thumb'));
+        element.classList.add('active-thumb');
+    }
+
+    // Handle Adjust qty buttons
+    function adjustQty(change) {
+        const qtyInput = document.getElementById('productQty');
+        let current = parseInt(qtyInput.value);
+        let updated = current + change;
+        const min = parseInt(qtyInput.min);
+        const max = parseInt(qtyInput.max);
+
+        if(updated >= min && updated <= max) {
+            qtyInput.value = updated;
+        }
+    }
+
+    // AJAX Add to Cart
+    async function addToCart(productId) {
+        {% if not user.is_authenticated %}
+            window.location.href = "{% url 'login' %}?next=" + encodeURIComponent(window.location.pathname);
+            return;
+        {% endif %}
+
+        const qty = document.getElementById('productQty').value;
+        const btn = document.getElementById('addToCartBtn');
+        const originalText = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Adding...';
+
+        try {
+            const response = await fetch("{% url 'api_cart_add' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ product_id: productId, quantity: qty })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+                btn.innerHTML = '<i class="fa-solid fa-check me-2"></i> Added to Collection!';
+                btn.classList.replace('btn-glow', 'btn-success');
+                
+                // Flash Update Badge
+                const initBadge = document.getElementById('cart-count-initial');
+                const freshBadge = document.getElementById('cart-count-badge');
+                
+                if (initBadge) initBadge.remove();
+                freshBadge.textContent = data.cart_count;
+                freshBadge.classList.remove('d-none');
+                
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    btn.classList.replace('btn-success', 'btn-glow');
+                }, 2000);
+            } else {
+                alert(data.error || "An error occurred.");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch (err) {
+            console.error("Add to cart error:", err);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    // Star interaction controller
+    function selectStars(val) {
+        document.getElementById('selectedRating').value = val;
+        const stars = document.querySelectorAll('.star-opt');
+        stars.forEach((s, index) => {
+            if(index < val) {
+                s.className = 'fa-solid fa-star star-opt cursor-pointer active';
+            } else {
+                s.className = 'fa-regular fa-star star-opt cursor-pointer';
+            }
+        });
+    }
+
+    // AJAX Submit Review
+    async function submitReview(e) {
+        e.preventDefault();
+        const rating = document.getElementById('selectedRating').value;
+        const comment = document.getElementById('reviewComment').value;
+        const productId = document.getElementById('reviewProductId').value;
+
+        if (rating == 0) {
+            alert("Please pick a star rating.");
+            return;
+        }
+
+        try {
+            const resp = await fetch("{% url 'api_review_create' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ product: productId, rating: rating, comment: comment })
+            });
+
+            const resData = await resp.json();
+
+            if (resp.ok) {
+                alert("Review submitted successfully!");
+                location.reload(); // Refresh listing
+            } else {
+                alert(resData.error || "Failure trying to submit review.");
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    // AJAX Wishlist Action
+    async function toggleWishlist(productId) {
+        {% if not user.is_authenticated %}
+            window.location.href = "{% url 'login' %}?next=" + encodeURIComponent(window.location.pathname);
+            return;
+        {% endif %}
+
+        const btn = document.getElementById('detailWishlistBtn');
+        
+        try {
+            const resp = await fetch("{% url 'api_wishlist_toggle' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ product_id: productId })
+            });
+            
+            const data = await resp.json();
+            if(resp.ok) {
+                if(data.added) {
+                    btn.className = 'btn btn-danger w-100 py-3 fw-semibold';
+                    btn.innerHTML = '<i class="fa-solid fa-heart me-2"></i> Assigned to Wishlist';
+                } else {
+                    btn.className = 'btn btn-outline-premium w-100 py-3 fw-semibold';
+                    btn.innerHTML = '<i class="fa-regular fa-heart me-2"></i> Add to Wishlist';
+                }
+                // Refresh wishlist badge if needed
+                location.reload();
+            }
+        } catch(err) { console.error(err); }
+    }
+</script>
+{% endblock %}

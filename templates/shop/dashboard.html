@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}My Account Dashboard | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Welcome Header -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card border-0 rounded-4 p-4 shadow-sm bg-gradient-premium text-white position-relative overflow-hidden" style="background: linear-gradient(135deg, #111 0%, #2a2a2a 100%);">
+                <!-- Decorative background shapes -->
+                <div class="position-absolute opacity-10 end-0 bottom-0" style="font-size: 180px; transform: translate(30px, 50px);">
+                    <i class="fa-solid fa-gauge-high"></i>
+                </div>
+                <div class="position-relative z-index-1">
+                    <span class="badge bg-accent mb-2 px-3 py-2 text-uppercase fw-semibold" style="background-color: var(--accent-color); font-size: 11px; letter-spacing: 0.5px;">Customer Area</span>
+                    <h1 class="display-5 fw-bold mb-2">Welcome back, {{ user.username }}!</h1>
+                    <p class="text-white-50 mb-0"><i class="fa-regular fa-envelope me-2"></i> {{ user.email }} &nbsp;|&nbsp; <i class="fa-regular fa-calendar me-2"></i> Member since {{ user.date_joined|date:"F Y" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats Grid -->
+    <div class="row g-4 mb-5">
+        <!-- Orders Metric -->
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 rounded-4 p-4 shadow-sm h-100 transition-hover" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="rounded-3 p-3 bg-primary-subtle text-primary">
+                        <i class="fa-solid fa-box fs-4"></i>
+                    </div>
+                    <span class="text-muted small fw-semibold">Orders</span>
+                </div>
+                <h3 class="fw-bold mb-1" style="font-size: 32px;">{{ orders_count }}</h3>
+                <p class="text-muted small mb-0">Total purchases placed</p>
+            </div>
+        </div>
+
+        <!-- Wishlist Metric -->
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 rounded-4 p-4 shadow-sm h-100 transition-hover" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="rounded-3 p-3 bg-danger-subtle text-danger">
+                        <i class="fa-solid fa-heart fs-4"></i>
+                    </div>
+                    <span class="text-muted small fw-semibold">Wishlist</span>
+                </div>
+                <h3 class="fw-bold mb-1" style="font-size: 32px;">{{ wishlist_count }}</h3>
+                <p class="text-muted small mb-0">Saved products</p>
+            </div>
+        </div>
+
+        <!-- Chats Metric -->
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 rounded-4 p-4 shadow-sm h-100 transition-hover" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="rounded-3 p-3 bg-success-subtle text-success">
+                        <i class="fa-solid fa-comments fs-4"></i>
+                    </div>
+                    <span class="text-muted small fw-semibold">Messages</span>
+                </div>
+                <h3 class="fw-bold mb-1" style="font-size: 32px;">{{ chat_count }}</h3>
+                <p class="text-muted small mb-0">Active conversations</p>
+            </div>
+        </div>
+
+        <!-- Addresses Metric -->
+        <div class="col-6 col-lg-3">
+            <div class="card border-0 rounded-4 p-4 shadow-sm h-100 transition-hover" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="rounded-3 p-3 bg-warning-subtle text-warning">
+                        <i class="fa-solid fa-location-dot fs-4"></i>
+                    </div>
+                    <span class="text-muted small fw-semibold">Addresses</span>
+                </div>
+                <h3 class="fw-bold mb-1" style="font-size: 32px;">{{ addresses_count }}</h3>
+                <p class="text-muted small mb-0">Saved locations</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="row g-4">
+        <!-- Recent Orders -->
+        <div class="col-lg-8">
+            <div class="card border-0 rounded-4 p-4 shadow-sm h-100" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="fw-bold mb-0">Recent Orders</h4>
+                    {% if recent_orders %}
+                    <a href="{% url 'order_list' %}" class="btn btn-link text-decoration-none fw-semibold text-accent p-0" style="color: var(--accent-color);">View All Orders <i class="fa-solid fa-arrow-right ms-1"></i></a>
+                    {% endif %}
+                </div>
+
+                {% if recent_orders %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="border-0 rounded-start-3">Order ID</th>
+                                <th class="border-0">Date Placed</th>
+                                <th class="border-0">Products</th>
+                                <th class="border-0">Status</th>
+                                <th class="border-0">Total</th>
+                                <th class="border-0 rounded-end-3 text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_orders %}
+                            <tr>
+                                <td class="fw-bold">#{{ order.id }}</td>
+                                <td class="text-muted">{{ order.created_at|date:"M d, Y" }}</td>
+                                <td>
+                                    <div class="d-flex flex-column gap-1">
+                                        {% for item in order.items.all|slice:":2" %}
+                                            <span class="small text-truncate" style="max-width: 180px;" title="{{ item.product_name }}">{{ item.quantity }}x {{ item.product_name }}</span>
+                                        {% endfor %}
+                                        {% if order.items.count > 2 %}
+                                            <span class="small text-muted fst-italic">+{{ order.items.count|add:"-2" }} more item(s)</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if order.status == 'Processing' %}
+                                        <span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2"><i class="fa-solid fa-rotate me-1"></i> {{ order.status }}</span>
+                                    {% elif order.status == 'Shipped' %}
+                                        <span class="badge bg-info-subtle text-info rounded-pill px-3 py-2"><i class="fa-solid fa-truck me-1"></i> {{ order.status }}</span>
+                                    {% elif order.status == 'Delivered' %}
+                                        <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2"><i class="fa-solid fa-check-double me-1"></i> {{ order.status }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-2">{{ order.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-semibold">${{ order.total_price }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'order_detail' order.id %}" class="btn btn-sm btn-outline-dark rounded-3 px-3 py-1 fw-semibold">Details</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <div class="text-muted mb-3" style="font-size: 54px;">
+                        <i class="fa-solid fa-receipt opacity-25"></i>
+                    </div>
+                    <h5>No orders found yet</h5>
+                    <p class="text-muted small max-width-350 mx-auto mb-4">Start discovering curated luxury collections and place your first order today!</p>
+                    <a href="{% url 'product_list' %}" class="btn btn-glow px-4 py-2 fw-semibold text-white">Start Shopping</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Quick Links Panel -->
+        <div class="col-lg-4">
+            <div class="card border-0 rounded-4 p-4 shadow-sm h-100" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
+                <h4 class="fw-bold mb-4">Quick Actions</h4>
+                
+                <div class="d-flex flex-column gap-2">
+                    <a href="{% url 'shipping_address_list' %}" class="btn btn-outline-premium text-start py-3 px-3 rounded-3 d-flex align-items-center justify-content-between transition-hover">
+                        <div>
+                            <i class="fa-solid fa-location-dot me-3 text-accent" style="color: var(--accent-color);"></i>
+                            <span class="fw-semibold">Manage Addresses</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right small text-muted"></i>
+                    </a>
+
+                    <a href="{% url 'wishlist' %}" class="btn btn-outline-premium text-start py-3 px-3 rounded-3 d-flex align-items-center justify-content-between transition-hover">
+                        <div>
+                            <i class="fa-solid fa-heart me-3 text-accent" style="color: var(--accent-color);"></i>
+                            <span class="fw-semibold">My Saved Items</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right small text-muted"></i>
+                    </a>
+
+                    <a href="{% url 'conversation_list' %}" class="btn btn-outline-premium text-start py-3 px-3 rounded-3 d-flex align-items-center justify-content-between transition-hover">
+                        <div>
+                            <i class="fa-solid fa-comments me-3 text-accent" style="color: var(--accent-color);"></i>
+                            <span class="fw-semibold">Message History</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right small text-muted"></i>
+                    </a>
+
+                    <a href="{% url 'password_reset' %}" class="btn btn-outline-premium text-start py-3 px-3 rounded-3 d-flex align-items-center justify-content-between transition-hover">
+                        <div>
+                            <i class="fa-solid fa-key me-3 text-accent" style="color: var(--accent-color);"></i>
+                            <span class="fw-semibold">Request Password Reset</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right small text-muted"></i>
+                    </a>
+                </div>
+
+                <div class="mt-4 pt-3 border-top text-center">
+                    <form action="{% url 'logout' %}" method="post" class="d-inline w-100">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-link text-danger text-decoration-none fw-semibold p-0"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i> Log out from this device</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

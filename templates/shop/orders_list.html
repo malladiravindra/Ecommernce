@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}My Order History | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-5 flex-wrap gap-3">
+        <div>
+            <h1 class="display-font h2 mb-1 fw-bold">Your Orders</h1>
+            <p class="text-muted mb-0">Manage and view all your previously purchased items.</p>
+        </div>
+        <a href="{% url 'product_list' %}" class="btn btn-outline-premium rounded-3 px-4 py-2 fw-semibold">Continue Shopping</a>
+    </div>
+
+    {% if orders %}
+        <div class="row">
+            <div class="col-12">
+                {% for o in orders %}
+                <div class="card border-0 rounded-4 shadow-sm mb-4 bg-white overflow-hidden transition-hover" style="border: 1px solid rgba(0,0,0,0.05) !important;">
+                    
+                    <!-- Order Card Header -->
+                    <div class="card-header border-0 d-flex flex-wrap justify-content-between align-items-center py-3 px-4" style="background-color: #f8f9fa;">
+                        <div class="d-flex flex-wrap gap-4">
+                            <div>
+                                <span class="text-uppercase text-muted fw-bold d-block mb-1" style="font-size: 10px; letter-spacing: 0.5px;">Order Placed</span>
+                                <span class="fw-semibold text-dark" style="font-size: 14px;">{{ o.created_at|date:"F d, Y" }}</span>
+                            </div>
+                            <div>
+                                <span class="text-uppercase text-muted fw-bold d-block mb-1" style="font-size: 10px; letter-spacing: 0.5px;">Total Price</span>
+                                <span class="fw-bold text-accent" style="color: var(--accent-color); font-size: 14px;">₹{{ o.total_price }}</span>
+                            </div>
+                            <div>
+                                <span class="text-uppercase text-muted fw-bold d-block mb-1" style="font-size: 10px; letter-spacing: 0.5px;">Ship To</span>
+                                <span class="fw-semibold text-dark" style="font-size: 14px;">{{ o.shipping_address.full_name|default:user.username }}</span>
+                            </div>
+                        </div>
+                        <div class="text-md-end mt-2 mt-md-0">
+                            <span class="text-muted d-block mb-1" style="font-size: 12px;">Order #SHOPPING_APP{{ o.id }}</span>
+                            <a href="{% url 'order_detail' o.id %}" class="small text-decoration-none fw-bold text-accent" style="color: var(--accent-color); font-size: 13px;">View Order Details <i class="fa-solid fa-chevron-right ms-1" style="font-size: 10px;"></i></a>
+                        </div>
+                    </div>
+                    
+                    <!-- Order Card Body -->
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                            <div>
+                                <h5 class="fw-bold mb-1" style="font-size: 16px;">
+                                    Status: 
+                                    {% if o.status == 'Processing' %}
+                                        <span class="text-warning"><i class="fa-solid fa-rotate me-1"></i> {{ o.status }}</span>
+                                    {% elif o.status == 'Shipped' %}
+                                        <span class="text-info"><i class="fa-solid fa-truck me-1"></i> {{ o.status }}</span>
+                                    {% elif o.status == 'Delivered' %}
+                                        <span class="text-success"><i class="fa-solid fa-circle-check me-1"></i> {{ o.status }}</span>
+                                    {% elif o.status == 'Cancelled' %}
+                                        <span class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i> {{ o.status }}</span>
+                                    {% else %}
+                                        <span class="text-secondary">{{ o.status }}</span>
+                                    {% endif %}
+                                </h5>
+                                {% if o.tracking_number %}
+                                    <span class="text-muted small">Tracking ID: <span class="fw-semibold text-dark">{{ o.tracking_number }}</span></span>
+                                {% endif %}
+                            </div>
+                            
+                            <a href="{% url 'order_detail' o.id %}" class="btn btn-sm btn-glow rounded-3 px-3 py-2 fw-semibold text-white">Track Order</a>
+                        </div>
+                        
+                        <!-- Compact Live Logistical Tracking Timeline -->
+                        <div class="position-relative py-3 my-4 d-flex justify-content-between align-items-center w-100 overflow-hidden px-2 bg-light rounded-3" style="border: 1px solid rgba(0,0,0,0.03);">
+                            <!-- Connecting Line -->
+                            <div class="position-absolute start-0 end-0 bg-secondary-subtle" style="height: 3px; top: 40%; z-index: 1; margin: 0 40px;">
+                                <div class="h-100" style="background-color: var(--accent-color); width: {% if o.status == 'Pending' %}0%{% elif o.status == 'Processing' %}33.3%{% elif o.status == 'Shipped' %}66.6%{% elif o.status == 'Delivered' %}100%{% else %}0%{% endif %}; transition: width 0.8s;"></div>
+                            </div>
+                            
+                            <!-- Milestone 1: Placed -->
+                            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center mb-1" 
+                                     style="width: 28px; height: 28px; background-color: {% if o.status != 'Cancelled' %}var(--accent-color){% else %}#d1d5db{% endif %}; border: 2px solid white; color: white;">
+                                    <i class="fa-solid fa-file-invoice small" style="font-size: 10px;"></i>
+                                </div>
+                                <span class="fw-bold text-dark" style="font-size: 10px;">Placed</span>
+                            </div>
+                            
+                            <!-- Milestone 2: Processing -->
+                            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center mb-1" 
+                                     style="width: 28px; height: 28px; background-color: {% if o.status == 'Processing' or o.status == 'Shipped' or o.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.status == 'Processing' or o.status == 'Shipped' or o.status == 'Delivered' %}white{% else %}#9ca3af{% endif %};">
+                                    <i class="fa-solid fa-box-open small" style="font-size: 10px;"></i>
+                                </div>
+                                <span class="{% if o.status == 'Processing' or o.status == 'Shipped' or o.status == 'Delivered' %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Processing</span>
+                            </div>
+                            
+                            <!-- Milestone 3: Shipped -->
+                            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center mb-1" 
+                                     style="width: 28px; height: 28px; background-color: {% if o.status == 'Shipped' or o.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.status == 'Shipped' or o.status == 'Delivered' %}white{% else %}#9ca3af{% endif %};">
+                                    <i class="fa-solid fa-truck small" style="font-size: 10px;"></i>
+                                </div>
+                                <span class="{% if o.status == 'Shipped' or o.status == 'Delivered' %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Shipped</span>
+                            </div>
+                            
+                            <!-- Milestone 4: Delivered -->
+                            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center mb-1" 
+                                     style="width: 28px; height: 28px; background-color: {% if o.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.status == 'Delivered' %}white{% else %}#9ca3af{% endif %};">
+                                    <i class="fa-solid fa-check small" style="font-size: 10px;"></i>
+                                </div>
+                                <span class="{% if o.status == 'Delivered' %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Delivered</span>
+                            </div>
+                        </div>
+                        
+                        <hr class="my-3 opacity-10">
+
+                        <!-- Items List -->
+                        <div class="d-flex flex-column gap-3">
+                            {% for item in o.items.all %}
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 py-1">
+                                <div class="d-flex align-items-center gap-3">
+                                    {% if item.product %}
+                                        <img src="{% if item.product.image %}{{ item.product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" alt="{{ item.product_name }}" class="rounded-3 object-fit-cover" style="width: 75px; height: 75px; border: 1px solid rgba(0,0,0,0.08);">
+                                    {% else %}
+                                        <div class="rounded-3 bg-light d-flex align-items-center justify-content-center" style="width: 75px; height: 75px; border: 1px solid rgba(0,0,0,0.08);">
+                                            <i class="fa-solid fa-box text-muted fs-3"></i>
+                                        </div>
+                                    {% endif %}
+                                    <div>
+                                        <h6 class="fw-bold mb-1" style="font-size: 15px;">
+                                            {% if item.product %}
+                                                <a href="{% url 'product_detail' item.product.slug %}" class="text-decoration-none text-dark hover-accent">{{ item.product_name }}</a>
+                                            {% else %}
+                                                {{ item.product_name }}
+                                            {% endif %}
+                                        </h6>
+                                        <span class="text-muted small">Price: <span class="fw-semibold text-dark">₹{{ item.price }}</span> &nbsp;|&nbsp; Quantity: <span class="fw-semibold text-dark">{{ item.quantity }}</span></span>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="small text-muted d-block" style="font-size: 11px;">Subtotal</span>
+                                    <span class="fw-bold text-dark" style="font-size: 15px;">₹{{ item.get_subtotal }}</span>
+                                </div>
+                            </div>
+                            {% if not forloop.last %}<hr class="opacity-5 my-1">{% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% else %}
+        <div class="text-center py-5 my-4 border-2 border-dashed rounded-4" style="border: 2px dashed rgba(0,0,0,0.08);">
+            <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 100px; height: 100px;">
+                <i class="fa-solid fa-box-open fs-1 text-muted"></i>
+            </div>
+            <h3 class="display-font fw-bold">No Orders Placed Yet</h3>
+            <p class="text-muted col-md-6 mx-auto">Explore our exclusive collections and premium products. Your entire purchase history will be listed here.</p>
+            <a href="{% url 'product_list' %}" class="btn btn-glow mt-3 px-4 py-2 text-white fw-semibold">Start Shopping Now</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

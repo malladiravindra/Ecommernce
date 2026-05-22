@@ -1,0 +1,121 @@
+from rest_framework import status, permissions
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from django.db.models import Sum
+from .models import Product, Cart, CartItem, Wishlist, Review
+from .serializers import CartItemSerializer, ReviewSerializer
+
+class AddToCartAPI(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        product_id = request.data.get('product_id')
+        quantity = int(request.data.get('quantity', 1))
+
+        if not product_id:
+            return Response({"error": "Product ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        product = get_object_or_404(Product, id=product_id, is_active=True)
+        
+        # Validate stock
+        if product.stock < quantity:
+            return Response({"error": f"Only {product.stock} items available in stock."}, status=status.HTTP_400_BAD_REQUEST)
+
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+
+        if not created:
+            cart_item.quantity += quantity
+        else:
+            cart_item.quantity = quantity
+        
+        cart_item.save()
+        
+        # Recalculate total items for navbar
+        total_items = sum(item.quantity for item in cart.items.all())
+
+        return Response({
+            "message": f"Successfully added {product.name} to cart.",
+            "cart_count": total_items
+        }, status=status.HTTP_200_OK)
+
+
+class UpdateCartItemAPI(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        item_id = request.data.get('item_id')
+        action = request.data.get('action') # 'increase', 'decrease', 'remove'
+
+        cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+        
+        if action == 'increase':
+            if cart_item.product.stock > cart_item.quantity:
+                cart_item.quantity += 1
+                cart_item.save()
+            else:
+                return Response({"error": "Maximum stock limit reached"}, status=status.HTTP_400_BAD_REQUEST)
+        elif action == 'decrease':
+            if cart_item.quantity > 1:
+                cart_item.quantity -= 1
+                cart_item.save()
+            else:
+                cart_item.delete()
+        elif action == 'remove':
+            cart_item.delete()
+            
+        cart = Cart.objects.get(user=request.user)
+        total_items = sum(item.quantity for item in cart.items.all())
+        cart_total = cart.get_total()
+
+        return Response({
+            "message": "Cart updated successfully.",
+            "cart_count": total_items,
+            "cart_total": cart_total
+        }, status=status.HTTP_200_OK)
+
+
+class ToggleWishlistAPI(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        product_id = request.data.get('product_id')
+        if not product_id:
+            return Response({"error": "Product ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        product = get_object_or_404(Product, id=product_id)
+        wishlist_item = Wishlist.objects.filter(user=request.user, product=product)
+
+        if wishlist_item.exists():
+            wishlist_item.delete()
+            added = False
+            message = "Removed from Wishlist"
+        else:
+            Wishlist.objects.create(user=request.user, product=product)
+            added = True
+            message = "Added to Wishlist"
+
+        total_wishlist = Wishlist.objects.filter(user=request.user).count()
+
+        return Response({
+            "added": added,
+            "message": message,
+            "wishlist_count": total_wishlist
+        }, status=status.HTTP_200_OK)
+
+
+class CreateReviewAPI(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ReviewSerializer(data=request.data)
+        if serializer.is_valid():
+            # Ensure unique review from user on product
+            product = serializer.validated_data['product']
+            if Review.objects.filter(product=product, user=request.user).exists():
+                return Response({"error": "You have already reviewed this product."}, status=status.HTTP_400_BAD_REQUEST)
+                
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

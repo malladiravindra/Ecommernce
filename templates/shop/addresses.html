@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}My Address Records | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h1 class="display-font h2 mb-1">Logistical Records</h1>
+            <p class="text-muted">Manage the destination points for order deliveries.</p>
+        </div>
+        <a href="{% url 'shipping_address_add' %}" class="btn btn-glow px-4 py-3 rounded-3"><i class="fa-solid fa-plus me-2"></i> Create New Record</a>
+    </div>
+
+    {% if addresses %}
+    <div class="row g-4">
+        {% for address in addresses %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card premium-card border-0 p-4 shadow-sm h-100">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <span class="bg-light px-3 py-1 rounded-pill small text-muted fw-bold"><i class="fa-solid fa-location-dot me-1"></i> Address #{{ forloop.counter }}</span>
+                </div>
+                
+                <h5 class="fw-bold mb-2">{{ address.full_name }}</h5>
+                <p class="text-muted mb-1 small lh-base">{{ address.address_line1 }}</p>
+                {% if address.address_line2 %}
+                    <p class="text-muted mb-1 small lh-base">{{ address.address_line2 }}</p>
+                {% endif %}
+                <p class="text-muted mb-2 small">{{ address.city }}, {{ address.state }} - {{ address.postal_code }}</p>
+                <p class="text-dark fw-semibold mb-0 small"><i class="fa-solid fa-phone text-muted me-2"></i> {{ address.phone }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5 my-4">
+        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 90px; height: 90px;">
+            <i class="fa-solid fa-map-pin fs-2 text-muted"></i>
+        </div>
+        <h4 class="display-font">No Addresses Saved</h4>
+        <p class="text-muted mb-4">Save your address records for instantaneous checkout speeds later.</p>
+        <a href="{% url 'shipping_address_add' %}" class="btn btn-glow">Add a Destination Record</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

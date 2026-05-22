@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Tracking Station SHOPPING_APP{{ order.id }} | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    
+    <!-- Back to orders link -->
+    <div class="mb-4">
+        <a href="{% url 'order_list' %}" class="text-muted text-decoration-none small fw-bold"><i class="fa-solid fa-arrow-left me-2"></i> Return to Registry</a>
+    </div>
+
+    <!-- Header Section -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3">
+        <div>
+            <h1 class="display-font h2 mb-1">Logistical Tracking Station</h1>
+            <p class="text-muted mb-0">Registry Number: <span class="text-dark fw-bold">#SHOPPING_APP{{ order.id }}</span> &bull; Created: {{ order.created_at|date:"M d, Y" }}</p>
+        </div>
+        <div>
+            <span class="badge badge-glow px-4 py-3 rounded-pill fs-7 fw-bold tracking-widest text-uppercase">{{ order.status }}</span>
+        </div>
+    </div>
+
+    <!-- Milestones Status Progress Bar (Aesthetic Visualizer) -->
+    <div class="card border-0 premium-card p-4 p-md-5 shadow-sm bg-white mb-5">
+        <h5 class="fw-bold mb-4 display-font"><i class="fa-solid fa-route text-muted me-2"></i> Logistics Trace</h5>
+        
+        <!-- Tracker Row -->
+        <div class="position-relative py-4 d-flex justify-content-between align-items-center w-100 overflow-hidden">
+            <!-- Horizontal connecting Line -->
+            <div class="position-absolute top-50 start-0 translate-y-middle w-100 bg-light" style="height: 4px; z-index: 1;">
+                <!-- Active segment width based on order status -->
+                <div class="h-100" style="background: var(--primary-glow); width: {% if order.status == 'Pending' %}12.5%{% elif order.status == 'Processing' %}37.5%{% elif order.status == 'Shipped' %}62.5%{% elif order.status == 'Delivered' %}100%{% else %}0%{% endif %}; transition: width 1s ease-in-out;"></div>
+            </div>
+
+            <!-- Milestone 1: Pending -->
+            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
+                <div class="rounded-circle border-4 d-flex align-items-center justify-content-center mb-2" 
+                     style="width: 45px; height: 45px; background-color: {% if order.status != 'Cancelled' %}white{% else %}#f3f4f6{% endif %}; border-color: {% if order.status != 'Cancelled' %}var(--accent-color){% else %}#d1d5db{% endif %};">
+                    <i class="fa-solid fa-file-invoice-dollar {% if order.status != 'Cancelled' %}text-accent{% else %}text-muted{% endif %}" style="{% if order.status != 'Cancelled' %}color: var(--accent-color);{% endif %}"></i>
+                </div>
+                <span class="small fw-bold text-center">Registry Confirmed</span>
+            </div>
+
+            <!-- Milestone 2: Processing -->
+            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
+                <div class="rounded-circle border-4 d-flex align-items-center justify-content-center mb-2" 
+                     style="width: 45px; height: 45px; background-color: {% if order.status == 'Processing' or order.status == 'Shipped' or order.status == 'Delivered' %}var(--accent-color){% else %}white{% endif %}; border-color: {% if order.status == 'Processing' or order.status == 'Shipped' or order.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %};">
+                    <i class="fa-solid fa-box-open {% if order.status == 'Processing' or order.status == 'Shipped' or order.status == 'Delivered' %}text-white{% else %}text-muted{% endif %}"></i>
+                </div>
+                <span class="small {% if order.status == 'Processing' or order.status == 'Shipped' or order.status == 'Delivered' %}fw-bold{% else %}text-muted{% endif %} text-center">Curation Active</span>
+            </div>
+
+            <!-- Milestone 3: Shipped -->
+            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
+                <div class="rounded-circle border-4 d-flex align-items-center justify-content-center mb-2" 
+                     style="width: 45px; height: 45px; background-color: {% if order.status == 'Shipped' or order.status == 'Delivered' %}var(--accent-color){% else %}white{% endif %}; border-color: {% if order.status == 'Shipped' or order.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %};">
+                    <i class="fa-solid fa-truck-fast {% if order.status == 'Shipped' or order.status == 'Delivered' %}text-white{% else %}text-muted{% endif %}"></i>
+                </div>
+                <span class="small {% if order.status == 'Shipped' or order.status == 'Delivered' %}fw-bold{% else %}text-muted{% endif %} text-center">Transit Initiated</span>
+            </div>
+
+            <!-- Milestone 4: Delivered -->
+            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
+                <div class="rounded-circle border-4 d-flex align-items-center justify-content-center mb-2" 
+                     style="width: 45px; height: 45px; background-color: {% if order.status == 'Delivered' %}var(--accent-color){% else %}white{% endif %}; border-color: {% if order.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %};">
+                    <i class="fa-solid fa-handshake-simple {% if order.status == 'Delivered' %}text-white{% else %}text-muted{% endif %}"></i>
+                </div>
+                <span class="small {% if order.status == 'Delivered' %}fw-bold{% else %}text-muted{% endif %} text-center">Safe Arrival</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Summary Breakdown Grid -->
+    <div class="row g-5">
+        <!-- Logistics Details & Shipping Info -->
+        <div class="col-lg-4">
+            <div class="card border-0 premium-card p-4 bg-light shadow-sm mb-4">
+                <h6 class="fw-bold text-uppercase text-muted tracking-widest mb-3" style="font-size: 11px;">Destinational Route Info</h6>
+                <h5 class="fw-bold mb-2">{{ order.shipping_address.full_name }}</h5>
+                <p class="text-muted small mb-1 lh-base">{{ order.shipping_address.address_line1 }}</p>
+                {% if order.shipping_address.address_line2 %}
+                    <p class="text-muted small mb-1 lh-base">{{ order.shipping_address.address_line2 }}</p>
+                {% endif %}
+                <p class="text-muted small mb-3">{{ order.shipping_address.city }}, {{ order.shipping_address.state }} - {{ order.shipping_address.postal_code }}</p>
+                <p class="text-dark fw-bold mb-0 small"><i class="fa-solid fa-phone text-muted me-2"></i> {{ order.shipping_address.phone }}</p>
+            </div>
+
+            <div class="card border-0 premium-card p-4 bg-light shadow-sm">
+                <h6 class="fw-bold text-uppercase text-muted tracking-widest mb-3" style="font-size: 11px;">Transaction Metadata</h6>
+                <div class="d-flex flex-column gap-3">
+                    <div>
+                        <small class="text-muted d-block">Payment Method</small>
+                        <span class="fw-semibold"><i class="fa-brands fa-stripe text-primary fs-5 me-1 align-middle"></i> Stripe Gateway Emulator</span>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Encrypted Signature ID</small>
+                        <code class="small text-dark fw-semibold bg-white border-1 rounded px-2 py-1">{{ order.payment_id }}</code>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Transit Waybill Tracking</small>
+                        <span class="fw-bold text-uppercase text-accent" style="color: var(--accent-color);"><i class="fa-solid fa-barcode me-1"></i> {{ order.tracking_number }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Itemized Inventory Receipt -->
+        <div class="col-lg-8">
+            <div class="card border-0 premium-card p-4 p-md-5 shadow-sm bg-white">
+                <h4 class="display-font mb-4 border-bottom pb-3">Inventory Transferred</h4>
+                
+                <div class="d-flex flex-column gap-4 mb-4">
+                    {% for item in order.items.all %}
+                    <div class="d-flex align-items-center gap-4">
+                        <!-- Mini-thumbnail -->
+                        <div class="card bg-light border-0 p-1" style="width: 60px; height: 60px;">
+                            {% if item.product and item.product.image %}
+                                <img src="{% if item.product.image %}{{ item.product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="w-100 h-100 object-fit-cover rounded-2" alt="">
+                            {% else %}
+                                <div class="w-100 h-100 d-flex align-items-center justify-content-center text-muted small"><i class="fa-solid fa-image"></i></div>
+                            {% endif %}
+                        </div>
+
+                        <div class="flex-grow-1 text-truncate">
+                            <h6 class="fw-bold mb-1 text-truncate"><a href="{% if item.product %}{% url 'product_detail' item.product.slug %}{% else %}#{% endif %}" class="text-reset text-decoration-none">{{ item.product_name }}</a></h6>
+                            <small class="text-muted">Captured Price: ₹{{ item.price }} &bull; Units: {{ item.quantity }}</small>
+                        </div>
+
+                        <span class="fw-bold text-dark fs-6">₹{{ item.get_subtotal }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <hr class="border-secondary opacity-10 my-4">
+
+                <!-- Money aggregates -->
+                <div class="d-flex flex-column gap-3 ms-auto" style="max-width: 300px;">
+                    <div class="d-flex justify-content-between text-muted small">
+                        <span>Sub-Aggregate Value</span>
+                        <span class="fw-semibold text-dark">₹{{ order.total_price }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted small">
+                        <span>Global Logistical Routing</span>
+                        <span class="text-success fw-bold">₹0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center border-top border-secondary border-opacity-10 pt-3">
+                        <span class="fw-bold text-dark">Total Invoiced Cumulative:</span>
+                        <h4 class="fw-bold mb-0" style="color: var(--accent-color);">₹{{ order.total_price }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

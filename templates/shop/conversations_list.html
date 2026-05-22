@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}Your Conversations - E-commerce Chat{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-md-12">
+            <h2 class="mb-4">
+                <i class="fas fa-comments"></i> Your Messages
+                {% if unread_count > 0 %}
+                    <span class="badge badge-danger">{{ unread_count }}</span>
+                {% endif %}
+            </h2>
+
+            {% if conversations %}
+                <div class="list-group">
+                    {% for conversation in conversations %}
+                        <div class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-1">
+                                        {% if user == conversation.customer %}
+                                            <strong>Seller:</strong> {{ conversation.seller.first_name|default:conversation.seller.username }}
+                                        {% else %}
+                                            <strong>Customer:</strong> {{ conversation.customer.first_name|default:conversation.customer.username }}
+                                        {% endif %}
+                                    </h5>
+                                    
+                                    {% if conversation.product %}
+                                        <p class="mb-1 text-muted">
+                                            <i class="fas fa-box"></i>
+                                            <a href="{% url 'product_detail' conversation.product.slug %}">
+                                                {{ conversation.product.name }}
+                                            </a>
+                                        </p>
+                                    {% endif %}
+
+                                    <!-- Latest message preview -->
+                                    {% with latest_message=conversation.messages.last %}
+                                        {% if latest_message %}
+                                            <small class="text-muted">
+                                                {{ latest_message.content|truncatewords:15 }}
+                                            </small>
+                                        {% endif %}
+                                    {% endwith %}
+                                </div>
+
+                                <div class="text-right">
+                                    <small class="text-muted">
+                                        {{ conversation.updated_at|date:"M d, Y H:i" }}
+                                    </small>
+                                    <br>
+                                    <a href="{% url 'conversation_detail' conversation.id %}" 
+                                       class="btn btn-sm btn-primary mt-2">
+                                        <i class="fas fa-envelope-open"></i> Open Chat
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Pagination -->
+                {% if is_paginated %}
+                    <nav class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_obj.number }}</span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info" role="alert">
+                    <h4 class="alert-heading">No Conversations Yet</h4>
+                    <p>Start a conversation with a seller about a product to get started!</p>
+                    <hr>
+                    <p class="mb-0">
+                        <a href="{% url 'product_list' %}" class="btn btn-primary">
+                            <i class="fas fa-shopping-bag"></i> Browse Products
+                        </a>
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .list-group-item {
+        border: 1px solid #ddd;
+        margin-bottom: 10px;
+        border-radius: 5px;
+    }
+
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .badge-danger {
+        background-color: #dc3545;
+    }
+</style>
+{% endblock %}

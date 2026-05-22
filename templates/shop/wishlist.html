@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Saved Ambitions | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="mb-5">
+        <h1 class="display-font h2 mb-1">Your Ambitions</h1>
+        <p class="text-muted">A curated safe-holding of masterpieces you wish to obtain later.</p>
+    </div>
+
+    {% if wishlist_items %}
+    <div class="row g-4">
+        {% for item in wishlist_items %}
+        <div class="col-sm-6 col-md-4 col-lg-3" id="wish-item-{{ item.product.id }}">
+            <div class="card premium-card h-100 border-0 shadow-sm">
+                <div class="card-img-container position-relative" style="height: 260px;">
+                    <!-- Inline quick remove from wishlist AJAX trigger -->
+                    <button class="position-absolute top-0 end-0 m-3 border-0 bg-white shadow rounded-circle d-flex align-items-center justify-content-center" 
+                            style="width: 38px; height: 38px;"
+                            onclick="quickRemoveWishlist({{ item.product.id }})">
+                        <i class="fa-solid fa-trash-can text-danger small"></i>
+                    </button>
+
+                    <a href="{% url 'product_detail' item.product.slug %}">
+                        {% if item.product.image %}
+                            <img src="{% if item.product.image %}{{ item.product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="card-img-top w-100 h-100 object-fit-cover" alt="{{ item.product.name }}">
+                        {% endif %}
+                    </a>
+                </div>
+                
+                <div class="card-body p-4 d-flex flex-column">
+                    <small class="text-muted text-uppercase tracking-wider fw-bold mb-1" style="font-size: 9px;">{{ item.product.category.name }}</small>
+                    <h6 class="fw-bold mb-2 fs-6"><a href="{% url 'product_detail' item.product.slug %}" class="text-reset text-decoration-none">{{ item.product.name }}</a></h6>
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-auto pt-3">
+                        <span class="fw-bold text-accent fs-5" style="color: var(--accent-color);">₹{{ item.product.final_price }}</span>
+                        <a href="{% url 'product_detail' item.product.slug %}" class="btn btn-glow btn-sm rounded-3 py-2 px-3">Buy Now</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty UI State -->
+    <div class="text-center py-5 my-4">
+        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 100px; height: 100px;">
+            <i class="fa-regular fa-heart fs-1 text-muted"></i>
+        </div>
+        <h3 class="display-font">No Ambitions Recorded</h3>
+        <p class="text-muted col-md-6 mx-auto">When exploring catalog, press the Heart Icon on items to store your favorites right here.</p>
+        <a href="{% url 'product_list' %}" class="btn btn-glow mt-3 py-3 px-4 fs-6">Start Exploring</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function quickRemoveWishlist(productId) {
+        try {
+            const response = await fetch("{% url 'api_wishlist_toggle' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ product_id: productId })
+            });
+
+            if (response.ok) {
+                // Instant visual deletion from grid
+                document.getElementById(`wish-item-${productId}`).classList.add('fade');
+                setTimeout(() => location.reload(), 200);
+            }
+        } catch(err) { console.error(err); }
+    }
+</script>
+{% endblock %}

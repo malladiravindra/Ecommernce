@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Your Shopping Basket | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="mb-5">
+        <h1 class="display-font h2 mb-1">Selected Acquisitions</h1>
+        <p class="text-muted">Manage your collection before completing transaction.</p>
+    </div>
+
+    {% if cart.items.all %}
+    <div class="row g-5">
+        <!-- Cart Item Listing Column -->
+        <div class="col-lg-8">
+            <div class="d-flex flex-column gap-3">
+                {% for item in cart.items.all %}
+                <div class="card premium-card border-0 p-3 p-md-4 shadow-sm cart-item-row" id="cart-item-row-{{ item.id }}">
+                    <div class="row align-items-center g-3">
+                        <!-- Product Thumbnail -->
+                        <div class="col-3 col-md-2">
+                            <div class="card p-1 border-0 bg-light ratio ratio-1x1">
+                                {% if item.product.image %}
+                                    <img src="{% if item.product.image %}{{ item.product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="object-fit-contain rounded-3" alt="{{ item.product.name }}">
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Product Info -->
+                        <div class="col-9 col-md-4">
+                            <small class="text-muted text-uppercase tracking-wider fw-bold" style="font-size: 9px;">{{ item.product.category.name }}</small>
+                            <h6 class="fw-bold mb-1 mt-1"><a href="{% url 'product_detail' item.product.slug %}" class="text-reset text-decoration-none">{{ item.product.name }}</a></h6>
+                            <p class="text-muted small mb-0">₹{{ item.product.final_price }} per unit</p>
+                        </div>
+                        
+                        <!-- Quantity Adjuster -->
+                        <div class="col-6 col-md-3">
+                            <div class="input-group bg-light border-0 rounded-3" style="max-width: 120px;">
+                                <button class="btn btn-sm text-muted border-0" onclick="updateItem({{ item.id }}, 'decrease')"><i class="fa-solid fa-minus fs-8"></i></button>
+                                <span class="form-control form-control-sm text-center border-0 bg-transparent fw-bold mt-1" id="qty-display-{{ item.id }}">{{ item.quantity }}</span>
+                                <button class="btn btn-sm text-muted border-0" onclick="updateItem({{ item.id }}, 'increase')"><i class="fa-solid fa-plus fs-8"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Total Subtotal and Remove action -->
+                        <div class="col-6 col-md-3 d-flex flex-column align-items-md-end justify-content-center">
+                            <h5 class="fw-bold mb-2" style="color: var(--accent-color);">₹<span id="subtotal-display-{{ item.id }}">{{ item.get_subtotal }}</span></h5>
+                            <button class="btn btn-link btn-sm text-danger text-decoration-none p-0" onclick="updateItem({{ item.id }}, 'remove')">
+                                <i class="fa-regular fa-trash-can me-1"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Cart Summary Dashboard -->
+        <div class="col-lg-4">
+            <div class="card border-0 premium-card p-4 p-md-5 shadow-sm bg-white sticky-top" style="top: 100px;">
+                <h4 class="display-font mb-4 border-bottom pb-3">Cart Aggregate</h4>
+                
+                <div class="d-flex flex-column gap-3 mb-4">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Subtotal</span>
+                        <span class="fw-semibold text-reset">₹<span id="cart-subtotal">{{ cart.get_total }}</span></span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Shipping Valuation</span>
+                        <span class="text-success fw-bold">Free Global Express</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Estimates Taxes</span>
+                        <span class="text-reset fw-semibold">₹0.00</span>
+                    </div>
+                </div>
+
+                <hr class="border-secondary opacity-10 my-3">
+
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="fw-bold">Grand Cumulative:</h5>
+                            <h4 class="fw-bold mb-0" style="color: var(--accent-color);">₹<span id="cart-grandtotal">{{ cart.get_total }}</span></h4>
+                </div>
+
+                <a href="{% url 'checkout' %}" class="btn btn-glow w-100 py-3 fw-bold">
+                    Proceed to Finalization <i class="fa-solid fa-arrow-right ms-2"></i>
+                </a>
+                <p class="text-center text-muted small mt-3 mb-0"><i class="fa-solid fa-lock me-1"></i> Secure Bank Encrypted Checkout</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-5 mt-4">
+        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 100px; height: 100px;">
+            <i class="fa-solid fa-bag-shopping fs-1 text-muted"></i>
+        </div>
+        <h3 class="display-font">Your Collection is Unoccupied</h3>
+        <p class="text-muted col-md-6 mx-auto">Explore our custom curated collections to find products tailored exclusively for your lifestyle.</p>
+        <a href="{% url 'product_list' %}" class="btn btn-glow mt-3 py-3 px-4 fs-6">Return to Catalog</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function updateItem(itemId, action) {
+        try {
+            const resp = await fetch("{% url 'api_cart_update' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ item_id: itemId, action: action })
+            });
+
+            const data = await resp.json();
+
+            if (resp.ok) {
+                // Simple reload triggers complete navbar sync, 
+                // but we could also dynamically update the quantities.
+                // For smooth state, if quantity decreased to 0 or remove clicked:
+                if (action === 'remove' || data.cart_count === 0) {
+                    location.reload();
+                } else {
+                    // Reload to let Django recalculate subtotals correctly for robust integrity
+                    location.reload();
+                }
+            } else {
+                alert(data.error || "Error applying quantity modifications.");
+            }
+
+        } catch (err) {
+            console.error(err);
+        }
+    }
+</script>
+{% endblock %}

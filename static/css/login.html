@@ -1,0 +1,15 @@
+ {% extends "admin/login.html" %}
+{% load static %}
+
+<!-- Inject Custom CSS -->
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'css/admin_login.css' %}">
+{% endblock %}
+
+<!-- Optional: Change the header title from "Django administration" to your own -->
+{% block branding %}
+    <h1 id="site-name">
+        <a href="{% url 'home' %}">Store Administration</a>
+    </h1>
+{% endblock %}

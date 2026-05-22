@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+
+{% block title %}Chat - E-commerce Chat{% endblock %}
+
+{% block content %}
+<div class="container-fluid my-4">
+    <div class="row h-100">
+        <!-- Chat Header -->
+        <div class="col-md-8 offset-md-2">
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">
+                                <i class="fas fa-user-circle"></i>
+                                {{ other_user.first_name|default:other_user.username }}
+                            </h5>
+                            {% if conversation.product %}
+                                <small>
+                                    <i class="fas fa-box"></i>
+                                    <a href="{% url 'product_detail' conversation.product.slug %}" 
+                                       class="text-white-50" target="_blank">
+                                        {{ conversation.product.name }}
+                                    </a>
+                                </small>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'conversation_list' %}" class="btn btn-sm btn-light">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Container -->
+            <div class="card border-0 shadow-sm" style="min-height: 400px; max-height: 600px; overflow-y: auto;">
+                <div class="card-body" id="messages-container" style="background-color: #f8f9fa;">
+                    <!-- Messages will be loaded here -->
+                    <div class="text-center text-muted py-5">
+                        <p>Loading messages...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message Input -->
+            <div class="card border-0 shadow-sm mt-3">
+                <div class="card-body">
+                    <form id="message-form" class="form-inline">
+                        {% csrf_token %}
+                        <div class="input-group w-100">
+                            <input type="text" 
+                                   id="message-input" 
+                                   class="form-control" 
+                                   placeholder="Type your message..."
+                                   autocomplete="off"
+                                   required>
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="fas fa-paper-plane"></i> Send
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Connection Status -->
+            <div class="mt-2">
+                <small id="connection-status" class="text-muted">
+                    <i class="fas fa-circle text-danger"></i> Connecting...
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    #messages-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 15px;
+    }
+
+    .message {
+        display: flex;
+        margin-bottom: 10px;
+        animation: slideIn 0.3s ease-in;
+    }
+
+    .message.own {
+        justify-content: flex-end;
+    }
+
+    .message.own .message-bubble {
+        background-color: #007bff;
+        color: white;
+        border-radius: 18px 5px 18px 18px;
+    }
+
+    .message.other .message-bubble {
+        background-color: #e9ecef;
+        color: #333;
+        border-radius: 5px 18px 18px 18px;
+    }
+
+    .message-bubble {
+        max-width: 70%;
+        padding: 10px 15px;
+        word-wrap: break-word;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .message-time {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        margin-top: 5px;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    #message-input {
+        border-radius: 20px;
+        padding: 10px 15px;
+    }
+
+    #message-input:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    .btn-primary {
+        border-radius: 20px;
+    }
+</style>
+
+<script>
+    const conversationId = {{ conversation.id }};
+    const currentUserId = {{ user.id }};
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const chatWebSocket = new WebSocket(
+        `${protocol}//${window.location.host}/ws/chat/${conversationId}/`
+    );
+
+    const messagesContainer = document.getElementById('messages-container');
+    const messageForm = document.getElementById('message-form');
+    const messageInput = document.getElementById('message-input');
+    const connectionStatus = document.getElementById('connection-status');
+
+    // Load existing messages
+    async function loadMessages() {
+        try {
+            // This could be implemented by adding an API endpoint to fetch message history
+            // For now, messages will load as they come through WebSocket
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    }
+
+    // WebSocket event handlers
+    chatWebSocket.onopen = function (e) {
+        console.log('Chat WebSocket connection established');
+        connectionStatus.innerHTML = '<i class="fas fa-circle text-success"></i> Connected';
+        messagesContainer.innerHTML = ''; // Clear loading message
+    };
+
+    chatWebSocket.onmessage = function (e) {
+        const data = JSON.parse(e.data);
+        
+        if (data.error) {
+            console.error('WebSocket error:', data.error);
+            return;
+        }
+
+        displayMessage(data);
+    };
+
+    chatWebSocket.onerror = function (e) {
+        console.error('WebSocket error:', e);
+        connectionStatus.innerHTML = '<i class="fas fa-circle text-danger"></i> Connection Error';
+    };
+
+    chatWebSocket.onclose = function (e) {
+        console.log('Chat WebSocket connection closed');
+        connectionStatus.innerHTML = '<i class="fas fa-circle text-warning"></i> Disconnected';
+    };
+
+    function displayMessage(data) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${data.is_own_message ? 'own' : 'other'}`;
+
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        bubble.textContent = data.message;
+
+        const time = document.createElement('div');
+        time.className = 'message-time';
+        time.textContent = new Date(data.timestamp).toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.flexDirection = 'column';
+        wrapper.appendChild(bubble);
+        wrapper.appendChild(time);
+
+        messageDiv.appendChild(wrapper);
+        messagesContainer.appendChild(messageDiv);
+
+        // Auto-scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    messageForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const message = messageInput.value.trim();
+        if (message === '') return;
+
+        chatWebSocket.send(JSON.stringify({
+            'message': message
+        }));
+
+        messageInput.value = '';
+        messageInput.focus();
+    });
+
+    // Load messages when page loads
+    loadMessages();
+</script>
+{% endblock %}

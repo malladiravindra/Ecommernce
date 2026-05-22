@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% load socialaccount %}
+{% block title %}Shopping_App Secure Sign-In{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center mt-4">
+        <div class="col-md-6 col-lg-4">
+            
+            <div class="text-center mb-4">
+                <a href="{% url 'home' %}" class="text-decoration-none">
+                    <span class="fs-2 fw-bold text-gradient display-font">Shopping_App</span>
+                </a>
+            </div>
+
+            <!-- Minimalist Login Card -->
+            <div class="card border-1 rounded-4 p-4 shadow-sm bg-white" style="border: 1px solid #e0e0e0;">
+                <h3 class="fw-bold mb-3" style="font-size: 28px; letter-spacing: -0.5px;">Sign in</h3>
+                 
+                <!-- AJAX Inline Message Tray -->
+                <div id="ajax-alert-container" style="display: none;"></div>
+
+                <form id="ajax-login-form" method="POST" class="needs-validation" novalidate>
+                    {% csrf_token %}
+
+                    <!-- Email Input -->
+                    <div class="mb-3">
+                        <label for="email-input" class="form-label small fw-bold mb-1 text-dark">Email Address</label>
+                        <input type="email" id="email-input" class="form-control py-2 px-3" style="border: 1px solid #a6a6a6; border-radius: 6px; font-size: 14px;" placeholder="name@example.com" required autofocus>
+                    </div>
+
+
+                    <!-- Password Input w/ Visibility Eye Toggle -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label for="password-input" class="form-label small fw-bold mb-0 text-dark">Password</label>
+                            <a href="{% url 'password_reset' %}" class="small text-decoration-none fw-semibold text-accent" style="color: var(--accent-color); font-size: 12px;">Forgot Password?</a>
+                        </div>
+                        
+                        <div class="input-group overflow-hidden" style="border: 1px solid #a6a6a6; border-radius: 6px;">
+                            <input type="password" id="password-input" class="form-control py-2 px-3 border-0" style="font-size: 14px;" required>
+                            <button type="button" class="btn btn-light border-0 px-3" id="toggle-password-btn" style="background: transparent;">
+                                <i class="fa-regular fa-eye text-muted" id="eye-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+
+
+                    <!-- Submit Trigger -->
+                    <button type="submit" class="btn btn-glow w-100 py-2 fw-semibold text-white mt-2" id="submit-btn" style="font-size: 14px;">
+                        Login
+                    </button>
+                </form>
+
+                <p class="text-muted mt-3 mb-0" style="font-size: 12px; line-height: 1.5;">
+                    By continuing, you agree to Shopping_App's <a href="#" class="text-decoration-none text-accent">Conditions of Use</a> and <a href="#" class="text-decoration-none text-accent">Privacy Notice</a>.
+                </p>
+            </div>
+
+            <div class="my-4 position-relative text-center">
+                <hr class="border-secondary border-1 opacity-10 w-75 mx-auto">
+                <span class="position-absolute top-50 start-50 translate-middle bg-light px-3 text-muted small fw-semibold" style="font-size: 11px; background-color: #f8f9fa !important;">New to Shopping_App?</span>
+            </div>
+
+            <!-- Secondary Create Button mimicking Amazon's secondary action button -->
+            <a href="{% url 'register' %}" class="btn btn-outline-dark w-100 py-2 fw-semibold" style="font-size: 14px; border: 1px solid #d0d0d0; background: linear-gradient(180deg,#fff,#f7f8fa); color: #111;">
+                Create your Shopping_App account
+            </a>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Show/Hide Password Toggle logic
+    const toggleBtn = document.getElementById('toggle-password-btn');
+    const passInput = document.getElementById('password-input');
+    const eyeIcon = document.getElementById('eye-icon');
+
+    toggleBtn.addEventListener('click', () => {
+        if (passInput.type === 'password') {
+            passInput.type = 'text';
+            eyeIcon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            passInput.type = 'password';
+            eyeIcon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    });
+
+    // AJAX Login submission logic
+    const loginForm = document.getElementById('ajax-login-form');
+    const alertContainer = document.getElementById('ajax-alert-container');
+    const submitBtn = document.getElementById('submit-btn');
+
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('email-input').value;
+        const pass = passInput.value;
+
+        if (!email || !pass) {
+            showAlert("Please enter both email address and password.", "danger");
+            return;
+        }
+
+        // Loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
+        alertContainer.style.display = 'none';
+
+        try {
+            const response = await fetch("{% url 'api_login' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: pass
+                })
+            });
+
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showAlert(result.message, "success");
+                // Wait 1 sec for visual effect then redirect to next parameter or Home page
+                setTimeout(() => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const nextParam = urlParams.get('next') || "{% url 'home' %}";
+                    window.location.href = nextParam;
+                }, 800);
+            } else {
+                showAlert(result.error || "Authentication aborted.", "danger");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Continue';
+            }
+        } catch (error) {
+            showAlert("Network pipeline error. Contact Administrator.", "danger");
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Continue';
+        }
+    });
+
+    function showAlert(msg, tag) {
+        alertContainer.innerHTML = `
+            <div class="alert alert-${tag} d-flex align-items-center py-2 px-3 rounded-3 border-0 mb-3 fs-7" role="alert" style="font-size: 12.5px;">
+                <i class="fa-solid fa-circle-exclamation me-2"></i>
+                <div>${msg}</div>
+            </div>
+        `;
+        alertContainer.style.display = 'block';
+    }
+</script>
+{% endblock %}

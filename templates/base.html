@@ -1,0 +1,259 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA Settings -->
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <meta name="theme-color" content="#2a2a2a">
+    <link rel="apple-touch-icon" href="{% static 'icons/icon-192x192.png' %}">
+
+    <title>{% block title %}Shopping_App | Premium E-Commerce{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Experience premium shopping at Shopping_App, the ultimate luxury e-commerce destination.{% endblock %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg glass-navbar py-3">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="{% url 'home' %}">
+                <span class="fs-3 fw-bold text-gradient display-font">Shopping_App</span>
+            </a>
+            
+            <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <form class="d-flex mx-lg-auto my-3 my-lg-0 w-lg-50" action="{% url 'product_list' %}" method="GET">
+                    <div class="input-group" style="max-width: 400px;">
+                        <input type="search" name="q" class="form-control form-control-premium rounded-start-4 border-end-0" placeholder="Search for item." aria-label="Search" value="{{ request.GET.q }}">
+                        <button class="btn form-control-premium border-start-0 rounded-end-4 text-muted bg-transparent" type="submit">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <ul class="navbar-nav align-items-center ms-auto gap-2">
+                    <li class="nav-item">
+                        <a class="nav-link text-reset px-2 fw-semibold" href="{% url 'home' %}">Home</a>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link text-reset px-2 fw-semibold" href="{% url 'product_list' %}">Products</a>
+                    </li>
+
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link text-reset px-2 fw-semibold" href="{% url 'order_list' %}">Orders</a>
+                    </li>
+                    {% endif %}
+                    
+                    <li class="nav-item">
+                        <a class="nav-link text-reset position-relative px-2" href="{% url 'wishlist' %}" title="Wishlist">
+                            <i class="fa-regular fa-heart fs-5"></i>
+                            {% if user.is_authenticated and global_wishlist_count > 0 %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill badge-glow" id="wishlist-count-badge">
+                                {{ global_wishlist_count }}
+                            </span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    
+                    <li class="nav-item me-2">
+                        <a class="nav-link text-reset position-relative px-2 fw-semibold d-flex align-items-center gap-1" href="{% url 'cart_detail' %}">
+                            <i class="fa-solid fa-cart-shopping fs-5"></i>
+                            <span>Cart</span>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill badge-glow d-none" id="cart-count-badge"></span>
+                            {% if global_cart_count > 0 %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill badge-glow" id="cart-count-initial">
+                                {{ global_cart_count }}
+                            </span>
+                            {% endif %}
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <button id="theme-toggle-btn" class="btn btn-link text-reset p-2 shadow-none" style="text-decoration: none;">
+                            <i class="fa-regular fa-moon fs-5" id="theme-toggle-icon"></i>
+                        </button>
+                    </li>
+                    
+                    <!-- Profile / User Controls -->
+                    {% if user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center text-reset gap-2 px-2 fw-semibold" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fa-regular fa-user fs-5"></i> Profile
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg rounded-3 p-2 mt-2" style="background-color: var(--card-bg);">
+                            <li class="dropdown-header fw-bold text-dark mb-1">Logged in as:<br><span class="text-accent" style="color: var(--accent-color);">{{ user.username }}</span></li>
+                            <li><hr class="dropdown-divider border-secondary opacity-25"></li>
+                            <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'user_dashboard' %}"><i class="fa-solid fa-gauge me-2 text-muted"></i> Account Dashboard</a></li>
+                            <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'order_list' %}"><i class="fa-solid fa-box me-2 text-muted"></i>Orders</a></li>
+                            <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'order_list' %}"><i class="fa-solid fa-route me-2 text-muted"></i> Track Orders</a></li>
+                            <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'shipping_address_list' %}"><i class="fa-solid fa-location-dot me-2 text-muted"></i> Manage Addresses</a></li>
+                            <li><hr class="dropdown-divider border-secondary opacity-25"></li>
+                            <li>
+                                <form action="{% url 'logout' %}" method="post" class="d-inline w-100">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item rounded-2 p-2 py-2 text-danger w-100 border-0 bg-transparent text-start"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i> Logout</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a href="{% url 'login' %}" class="btn btn-outline-premium px-4 py-2 fs-6 fw-semibold">Login</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-3">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4 shadow-sm border-0" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Main Content Area -->
+    <main style="min-height: 75vh;">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="mt-5">
+        <div class="container">
+            <div class="row gy-4 mb-5">
+                <div class="col-lg-4">
+                    <h4 class="display-font text-gradient mb-3">Shopping_App</h4>
+                    <p class="text-muted">Discover carefully curated collections designed for the modern lifestyle. Experience the intersection of style and performance.</p>
+                    <div class="d-flex gap-3 fs-5 mt-3">
+                        <a href="#" class="text-muted"><i class="fa-brands fa-instagram"></i></a>
+                        <a href="#" class="text-muted"><i class="fa-brands fa-twitter"></i></a>
+                        <a href="#" class="text-muted"><i class="fa-brands fa-pinterest"></i></a>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-2 ms-lg-auto">
+                    <h6 class="fw-bold mb-3 text-uppercase tracking-wider fs-7">Navigation</h6>
+                    <ul class="list-unstyled d-flex flex-column gap-2">
+                        <li><a href="{% url 'home' %}" class="text-muted text-decoration-none">Home</a></li>
+                        <li><a href="{% url 'product_list' %}" class="text-muted text-decoration-none">Shop Catalog</a></li>
+                        <li><a href="{% url 'wishlist' %}" class="text-muted text-decoration-none">Wishlist</a></li>
+                    </ul>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <h6 class="fw-bold mb-3 text-uppercase tracking-wider fs-7">Legal</h6>
+                    <ul class="list-unstyled d-flex flex-column gap-2">
+                        <li><a href="#" class="text-muted text-decoration-none">Terms of Use</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Privacy Policy</a></li>
+                        <li><a href="#" class="text-muted text-decoration-none">Returns & Refunds</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-3">
+                    <h6 class="fw-bold mb-3 text-uppercase tracking-wider fs-7">Newsletter</h6>
+                    <p class="text-muted fs-7">Subscribe to receive early access alerts and exclusive drops.</p>
+                    <div class="input-group">
+                        <input type="email" class="form-control form-control-premium rounded-start-4 border-end-0" placeholder="Your email address">
+                        <button class="btn btn-glow rounded-end-4" type="button"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+            <hr class="border-secondary opacity-10">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center py-4">
+                <p class="text-muted fs-7 mb-0">© 2026 <span class="text-gradient fw-semibold">Shopping_App</span> Inc. Crafted for greatness.</p>
+                <div class="d-flex gap-3 align-items-center text-muted fs-2 mt-3 mt-md-0">
+                    <i class="fa-brands fa-cc-visa"></i>
+                    <i class="fa-brands fa-cc-mastercard"></i>
+                    <i class="fa-brands fa-cc-stripe"></i>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Theme Toggle Initialization -->
+    <script>
+        const THEME_STORAGE_KEY = 'shopping_app_theme';
+        const LIGHT_THEME = 'light';
+        const DARK_THEME = 'dark';
+        
+        function setTheme(themeName) {
+            document.documentElement.setAttribute('data-theme', themeName);
+            localStorage.setItem(THEME_STORAGE_KEY, themeName);
+            
+            const icon = document.getElementById('theme-toggle-icon');
+            if(icon) {
+                if(themeName === DARK_THEME) {
+                    icon.classList.remove('fa-moon');
+                    icon.classList.add('fa-sun');
+                } else {
+                    icon.classList.remove('fa-sun');
+                    icon.classList.add('fa-moon');
+                }
+            }
+        }
+
+        // Initialize Theme
+        const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        if (storedTheme) {
+            setTheme(storedTheme);
+        } else if (systemPrefersDark) {
+            setTheme(DARK_THEME);
+        } else {
+            setTheme(LIGHT_THEME);
+        }
+        
+        document.getElementById('theme-toggle-btn')?.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            setTheme(currentTheme === LIGHT_THEME ? DARK_THEME : LIGHT_THEME);
+        });
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+
+    <!-- Dynamic API Helper -->
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>

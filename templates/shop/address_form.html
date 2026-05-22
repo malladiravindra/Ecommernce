@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Add Shipping Coordinates | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center py-lg-3">
+        <div class="col-lg-6 col-md-8">
+            <div class="mb-4">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-2 small">
+                        <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-muted text-decoration-none">Home</a></li>
+                        <li class="breadcrumb-item"><a href="{% url 'shipping_address_list' %}" class="text-muted text-decoration-none">Logistical Records</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">New Coordinates</li>
+                    </ol>
+                </nav>
+                <h2 class="display-font h3">Assign New Coordinates</h2>
+            </div>
+
+            <div class="card border-0 premium-card p-4 p-md-5 shadow-sm bg-white">
+                <form method="POST">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger rounded-3 small">
+                            {% for error in form.non_field_errors %} {{ error }} {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <div class="row g-3">
+                        {% for field in form %}
+                        <div class="col-12 {% if field.name == 'city' or field.name == 'state' or field.name == 'postal_code' %}col-md-4{% endif %}">
+                            <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
+                            <input type="text" name="{{ field.name }}" class="form-control form-control-premium py-3" required id="{{ field.id_for_label }}" placeholder="{{ field.help_text|striptags }}">
+                            {% if field.errors %}
+                                <div class="text-danger small mt-1">{% for e in field.errors %}{{ e }}{% endfor %}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mt-4 pt-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-glow px-4 py-3 flex-grow-1 rounded-3">Save Destination</button>
+                        <a href="{% url 'shipping_address_list' %}" class="btn btn-light px-4 py-3 border-0 text-muted rounded-3">Abort</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
