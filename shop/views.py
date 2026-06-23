@@ -89,14 +89,17 @@ class HomeView(LoginRequiredMixin, View):
         latest_products = Product.objects.filter(is_active=True).order_by('-created_at')[:8]
         categories = Category.objects.all()[:6]
         banners = HomeBanner.objects.filter(is_active=True)
-        highlight_product = Product.objects.filter(is_highlight=True, is_active=True).order_by('-created_at').first()
+        highlight_products = Product.objects.filter(
+            Q(is_highlight=True) | Q(discount_price__isnull=False),
+            is_active=True
+        ).distinct().order_by('-created_at')
         
         context = {
             'featured_products': featured_products,
             'latest_products': latest_products,
             'categories': categories,
             'banner': banners.first() if banners.exists() else None,
-            'highlight_product': highlight_product
+            'highlight_products': highlight_products
         }
         return render(request, 'shop/home.html', context)
 

@@ -1,6 +1,7 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views, api_views
+from .soap import soap_application
 
 urlpatterns = [
     # Static & Catalog
@@ -45,4 +46,14 @@ urlpatterns = [
     path('api/cart/update/', api_views.UpdateCartItemAPI.as_view(), name='api_cart_update'),
     path('api/wishlist/toggle/', api_views.ToggleWishlistAPI.as_view(), name='api_wishlist_toggle'),
     path('api/reviews/create/', api_views.CreateReviewAPI.as_view(), name='api_review_create'),
+    path('api/products/', api_views.ProductListAPIView.as_view(), name='api_product_list'),
+    path('api/products/<int:pk>/', api_views.ProductDetailAPIView.as_view(), name='api_product_detail'),
+    path('api/categories/', api_views.CategoryListAPIView.as_view(), name='api_category_list'),
+    path('api/categories/<int:pk>/', api_views.CategoryDetailAPIView.as_view(), name='api_category_detail'),
+    path('api/cart/', api_views.CartDetailAPIView.as_view(), name='api_cart_detail'),
+    path('api/wishlist/', api_views.WishlistListCreateAPIView.as_view(), name='api_wishlist_list_create'),
+    path('api/wishlist/<int:pk>/', api_views.WishlistDestroyAPIView.as_view(), name='api_wishlist_remove'),
+    path('api/reviews/', api_views.ReviewListCreateAPIView.as_view(), name='api_review_list_create'),
+    path('api/orders/', api_views.OrderListAPIView.as_view(), name='api_order_list'),
+    path('api/soap/', soap_application, name='api_soap'),
 ]

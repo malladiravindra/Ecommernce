@@ -3,6 +3,36 @@
 
 {% block title %}Welcome to Shopping_App | Luxury Re-imagined{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Premium Carousel Indicators */
+    #highlightCarousel .carousel-indicators [data-bs-target] {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.4);
+        border: none;
+        margin: 0 5px;
+    }
+    #highlightCarousel .carousel-indicators .active {
+        background-color: var(--accent-color, #6366f1);
+        width: 24px;
+        border-radius: 5px;
+        transition: width 0.3s ease;
+    }
+    #highlightCarousel .carousel-control-prev, 
+    #highlightCarousel .carousel-control-next {
+        width: 5%;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    #highlightCarousel:hover .carousel-control-prev,
+    #highlightCarousel:hover .carousel-control-next {
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Dynamic Luxury Hero Banner -->
 <div class="container mt-4">
@@ -50,9 +80,11 @@
         <div class="col-6 col-md-4 col-lg-2">
             <a href="{% url 'product_list' %}?category={{ category.slug }}" class="text-decoration-none text-reset">
                 <div class="card border-0 text-center py-4 premium-card h-100 d-flex flex-column align-items-center justify-content-center">
-                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mb-3 shadow-sm" style="width: 70px; height: 70px;">
+                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mb-3 shadow-sm overflow-hidden" style="width: 70px; height: 70px;">
                         {% if category.image %}
-                            <img src="{{ category.image.url }}" class="img-fluid rounded-circle" alt="{{ category.name }}">
+                            <img src="{{ category.image.url }}" class="w-100 h-100 object-fit-cover rounded-circle" alt="{{ category.name }}">
+                        {% elif category.products.first.image %}
+                            <img src="{{ category.products.first.image.url }}" class="w-100 h-100 object-fit-cover rounded-circle" alt="{{ category.name }}">
                         {% else %}
                             <i class="fa-solid fa-layer-group fs-3" style="color: var(--accent-color);"></i>
                         {% endif %}
@@ -70,35 +102,65 @@
     </div>
 </div>
 
-{% if highlight_product %}
-<!-- Product Highlight Section -->
+{% if highlight_products %}
+<!-- Product Highlight Auto-Scrolling Carousel Section -->
 <div class="container mb-5">
-    <div class="row g-0 rounded-4 overflow-hidden shadow-premium highlight-banner">
-        <div class="col-lg-6 highlight-image-container" style="background: url('{% if highlight_product.image %}{{ highlight_product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}') center/cover; min-height: 400px;">
-            <div class="highlight-overlay d-flex flex-column justify-content-end p-5 h-100" style="background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);">
-                <span class="badge badge-glow mb-2 align-self-start">Product Highlight</span>
-                <h3 class="text-white display-5 fw-bold mb-0">{{ highlight_product.name }}</h3>
-            </div>
+    <div id="highlightCarousel" class="carousel slide carousel-fade">
+        <div class="carousel-indicators">
+            {% for prod in highlight_products %}
+            <button type="button" data-bs-target="#highlightCarousel" data-bs-slide-to="{{ forloop.counter0 }}" {% if forloop.first %}class="active" aria-current="true"{% endif %} aria-label="Slide {{ forloop.counter }}"></button>
+            {% endfor %}
         </div>
-        <div class="col-lg-6 bg-premium-dark p-5 d-flex flex-column justify-content-center" style="background: #0f172a; color: white;">
-            <span class="text-accent fw-bold text-uppercase small mb-2" style="color: var(--accent-color);">Signature Masterpiece</span>
-            <h2 class="display-4 fw-bold mb-3 display-font">The Ultimate Experience</h2>
-            <p class="lead text-white-50 mb-4">{{ highlight_product.description|truncatewords:40 }}</p>
-            <div class="d-flex align-items-center gap-4 mb-4">
-                <div>
-                    <span class="d-block text-white-50 small text-uppercase">Starting at</span>
-                    <span class="fs-2 fw-bold text-gradient">₹{{ highlight_product.final_price }}</span>
-                </div>
-                <div class="vr opacity-25"></div>
-                <div>
-                    <span class="d-block text-white-50 small text-uppercase">Rating</span>
-                    <span class="fs-4 fw-bold"><i class="fa-solid fa-star text-warning"></i> {{ highlight_product.average_rating|floatformat:1 }}</span>
+        <div class="carousel-inner rounded-4 overflow-hidden">
+            {% for prod in highlight_products %}
+            <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                <div class="row g-0 shadow-premium highlight-banner">
+                    <div class="col-lg-6 highlight-image-container" style="background: url('{% if prod.image %}{{ prod.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}') center/cover; min-height: 400px;">
+                        <div class="highlight-overlay d-flex flex-column justify-content-end p-5 h-100" style="background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);">
+                            {% if prod.is_highlight %}
+                                <span class="badge badge-glow mb-2 align-self-start" style="background: var(--accent-color);">Product Highlight</span>
+                            {% else %}
+                                <span class="badge badge-glow mb-2 align-self-start" style="background: #e11d48;">Special Offer</span>
+                            {% endif %}
+                            <h3 class="text-white display-5 fw-bold mb-0 text-truncate w-100">{{ prod.name }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 bg-premium-dark p-5 d-flex flex-column justify-content-center" style="background: #0f172a; color: white;">
+                        {% if prod.is_highlight %}
+                            <span class="text-accent fw-bold text-uppercase small mb-2" style="color: var(--accent-color);">Signature Masterpiece</span>
+                            <h2 class="display-4 fw-bold mb-3 display-font">The Ultimate Experience</h2>
+                        {% else %}
+                            <span class="text-accent fw-bold text-uppercase small mb-2" style="color: #f43f5e;">Exclusive Deal</span>
+                            <h2 class="display-4 fw-bold mb-3 display-font">Unmissable Offer</h2>
+                        {% endif %}
+                        <p class="lead text-white-50 mb-4">{{ prod.description|truncatewords:40 }}</p>
+                        <div class="d-flex align-items-center gap-4 mb-4">
+                            <div>
+                                <span class="d-block text-white-50 small text-uppercase">Starting at</span>
+                                <span class="fs-2 fw-bold text-gradient">₹{{ prod.final_price }}</span>
+                            </div>
+                            <div class="vr opacity-25"></div>
+                            <div>
+                                <span class="d-block text-white-50 small text-uppercase">Rating</span>
+                                <span class="fs-4 fw-bold"><i class="fa-solid fa-star text-warning"></i> {{ prod.average_rating|floatformat:1 }}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <a href="{% url 'product_detail' prod.slug %}" class="btn btn-glow px-5 py-3 rounded-4">Discover More</a>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div>
-                <a href="{% url 'product_detail' highlight_product.slug %}" class="btn btn-glow px-5 py-3 rounded-4">Discover More</a>
-            </div>
+            {% endfor %}
         </div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#highlightCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Previous</span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#highlightCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+            <span class="visually-hidden">Next</span>
+        </button>
     </div>
 </div>
 {% endif %}
@@ -198,4 +260,22 @@
         {% endfor %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const carouselEl = document.querySelector('#highlightCarousel');
+        if (carouselEl) {
+            // Explicitly initialize Bootstrap Carousel with a 2-second interval
+            const carouselInstance = new bootstrap.Carousel(carouselEl, {
+                interval: 2000,
+                ride: 'carousel',
+                wrap: true
+            });
+            carouselInstance.cycle();
+            console.log("Bootstrap Carousel manually initialized and cycling every 2000ms.");
+        }
+    });
+</script>
 {% endblock %}

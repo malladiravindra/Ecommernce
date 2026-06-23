@@ -1,10 +1,97 @@
-from rest_framework import status, permissions
+from rest_framework import status, permissions, generics
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum
-from .models import Product, Cart, CartItem, Wishlist, Review
-from .serializers import CartItemSerializer, ReviewSerializer
+from .models import Product, Cart, CartItem, Wishlist, Review, Category, Order
+from .serializers import (
+    CartItemSerializer,
+    CartSerializer,
+    ReviewSerializer,
+    CategorySerializer,
+    ProductSerializer,
+    WishlistSerializer,
+    OrderSerializer,
+)
+
+
+class ProductListAPIView(generics.ListAPIView):
+    queryset = Product.objects.filter(is_active=True)
+    serializer_class = ProductSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class ProductDetailAPIView(generics.RetrieveAPIView):
+    queryset = Product.objects.filter(is_active=True)
+    serializer_class = ProductSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class CategoryListAPIView(generics.ListAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class CategoryDetailAPIView(generics.RetrieveAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class CartDetailAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        serializer = CartSerializer(cart)
+        return Response(serializer.data)
+
+
+class WishlistListCreateAPIView(generics.ListCreateAPIView):
+    serializer_class = WishlistSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Wishlist.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class WishlistDestroyAPIView(generics.DestroyAPIView):
+    serializer_class = WishlistSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Wishlist.objects.filter(user=self.request.user)
+
+
+class ReviewListCreateAPIView(generics.ListCreateAPIView):
+    serializer_class = ReviewSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        queryset = Review.objects.all()
+        product_id = self.request.query_params.get('product')
+        if product_id:
+            queryset = queryset.filter(product_id=product_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        product = serializer.validated_data['product']
+        if Review.objects.filter(product=product, user=self.request.user).exists():
+            raise ValidationError({"product": "You have already reviewed this product."})
+        serializer.save(user=self.request.user)
+
+
+class OrderListAPIView(generics.ListAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user)
+
 
 class AddToCartAPI(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -17,8 +104,7 @@ class AddToCartAPI(APIView):
             return Response({"error": "Product ID is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         product = get_object_or_404(Product, id=product_id, is_active=True)
-        
-        # Validate stock
+
         if product.stock < quantity:
             return Response({"error": f"Only {product.stock} items available in stock."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -29,10 +115,8 @@ class AddToCartAPI(APIView):
             cart_item.quantity += quantity
         else:
             cart_item.quantity = quantity
-        
+
         cart_item.save()
-        
-        # Recalculate total items for navbar
         total_items = sum(item.quantity for item in cart.items.all())
 
         return Response({
@@ -46,10 +130,10 @@ class UpdateCartItemAPI(APIView):
 
     def post(self, request, *args, **kwargs):
         item_id = request.data.get('item_id')
-        action = request.data.get('action') # 'increase', 'decrease', 'remove'
+        action = request.data.get('action')
 
         cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
-        
+
         if action == 'increase':
             if cart_item.product.stock > cart_item.quantity:
                 cart_item.quantity += 1
@@ -64,7 +148,7 @@ class UpdateCartItemAPI(APIView):
                 cart_item.delete()
         elif action == 'remove':
             cart_item.delete()
-            
+
         cart = Cart.objects.get(user=request.user)
         total_items = sum(item.quantity for item in cart.items.all())
         cart_total = cart.get_total()
@@ -111,11 +195,9 @@ class CreateReviewAPI(APIView):
     def post(self, request, *args, **kwargs):
         serializer = ReviewSerializer(data=request.data)
         if serializer.is_valid():
-            # Ensure unique review from user on product
             product = serializer.validated_data['product']
             if Review.objects.filter(product=product, user=request.user).exists():
                 return Response({"error": "You have already reviewed this product."}, status=status.HTTP_400_BAD_REQUEST)
-                
             serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
