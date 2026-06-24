@@ -1,6 +1,6 @@
 {% extends "index.html" %}
 {% load socialaccount %}
-{% block title %}Shopping_App Secure Sign-In{% endblock %}
+{% block title %}Shopping_App Client Portal{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -15,7 +15,8 @@
 
             <!-- Minimalist Login Card -->
             <div class="card border-1 rounded-4 p-4 shadow-sm bg-white" style="border: 1px solid #e0e0e0;">
-                <h3 class="fw-bold mb-3" style="font-size: 28px; letter-spacing: -0.5px;">Sign in</h3>
+                <h3 class="fw-bold mb-1" style="font-size: 24px; letter-spacing: -0.5px;">Client Sign-in</h3>
+                <p class="text-muted mb-3" style="font-size: 13px;">Secure login for customers and shoppers.</p>
                  
                 <!-- AJAX Inline Message Tray -->
                 <div id="ajax-alert-container" style="display: none;"></div>
@@ -56,6 +57,12 @@
                 <p class="text-muted mt-3 mb-0" style="font-size: 12px; line-height: 1.5;">
                     By continuing, you agree to Shopping_App's <a href="#" class="text-decoration-none text-accent">Conditions of Use</a> and <a href="#" class="text-decoration-none text-accent">Privacy Notice</a>.
                 </p>
+                
+                <!-- Developer Portal Gateway -->
+                <div class="mt-3 pt-3 border-top text-center">
+                    <span class="text-muted small" style="font-size: 12px;">Are you a Developer?</span>
+                    <a href="{% url 'admin_login' %}" class="small text-decoration-none fw-bold ms-1" style="color: #0d6efd; font-size: 12px;">Developer Portal &rarr;</a>
+                </div>
             </div>
 
             <div class="my-4 position-relative text-center">
@@ -132,7 +139,7 @@
                 // Wait 1 sec for visual effect then redirect to next parameter or Home page
                 setTimeout(() => {
                     const urlParams = new URLSearchParams(window.location.search);
-                    const nextParam = urlParams.get('next') || "{% url 'home' %}";
+                    const nextParam = result.redirect_url || urlParams.get('next') || "{% url 'home' %}";
                     window.location.href = nextParam;
                 }, 800);
             } else {

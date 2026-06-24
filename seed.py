@@ -14,10 +14,15 @@ from django.contrib.auth.models import User
 def seed():
     print("Expanding seeded database with required E-Commerce taxonomy...")
     
-    # Create Superuser if not exists
-    if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@example.com', 'admin123')
-        print("Superuser created: admin / admin123")
+    # Create Superuser (Developer) if not exists
+    if not User.objects.filter(username='developer').exists():
+        User.objects.create_superuser('developer', 'developer@example.com', 'devpassword123')
+        print("Superuser (Developer) created: developer / devpassword123")
+        
+    # Create Normal Customer (Client) if not exists
+    if not User.objects.filter(username='customer').exists():
+        User.objects.create_user('customer', 'customer@example.com', 'customerpassword123')
+        print("Normal Customer (Client) created: customer / customerpassword123")
     
     # Specific required Categories for modern E-commerce grid
     categories_data = [

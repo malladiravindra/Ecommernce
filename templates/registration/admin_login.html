@@ -1,0 +1,288 @@
+{% extends "index.html" %}
+{% load static %}
+{% block title %}Developer & Admin Portal | Shopping_App{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Dark Theme override for Admin Login page */
+    .admin-login-body {
+        background-color: #0c0f17 !important;
+        color: #e2e8f0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+    }
+    
+    .admin-card {
+        background: rgba(20, 26, 40, 0.65) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+    }
+
+    .admin-title {
+        font-family: 'Outfit', 'Inter', sans-serif;
+        color: #f8fafc;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+    }
+
+    .terminal-badge {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 11px;
+        background-color: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        padding: 4px 10px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .form-control-dark {
+        background-color: rgba(15, 23, 42, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        color: #f1f5f9 !important;
+        font-size: 14px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .form-control-dark:focus {
+        background-color: rgba(15, 23, 42, 0.8) !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+        color: #fff !important;
+    }
+
+    .form-control-dark::placeholder {
+        color: #64748b !important;
+    }
+
+    .btn-admin-glow {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        border: none;
+        color: white;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-admin-glow:hover {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
+        transform: translateY(-1px);
+        color: white;
+    }
+
+    .btn-admin-glow:disabled {
+        background: #334155;
+        box-shadow: none;
+        color: #94a3b8;
+    }
+
+    .portal-link {
+        color: #94a3b8;
+        font-size: 13px;
+        transition: color 0.2s ease;
+    }
+
+    .portal-link:hover {
+        color: #3b82f6;
+    }
+
+    /* Pulse animation for shield icon */
+    .pulse-warning {
+        animation: warning-pulse 2s infinite;
+    }
+
+    @keyframes warning-pulse {
+        0% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.08);
+            opacity: 0.8;
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-login-body py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                
+                <div class="text-center mb-4">
+                    <a href="{% url 'home' %}" class="text-decoration-none">
+                        <span class="fs-2 fw-bold text-gradient display-font" style="background: linear-gradient(135deg, #60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Shopping_App</span>
+                    </a>
+                </div>
+
+                <!-- Admin Card -->
+                <div class="card admin-card p-4">
+                    
+                    <div class="text-center mb-4">
+                        <div class="mb-2">
+                            <span class="terminal-badge pulse-warning">
+                                <i class="fa-solid fa-shield-halved"></i> SECURE DEVS PORTAL
+                            </span>
+                        </div>
+                        <h3 class="admin-title mb-1">Developer Login</h3>
+                        <p class="text-muted small mb-0" style="color: #94a3b8 !important;">Authorized system operators only.</p>
+                    </div>
+
+                    <!-- AJAX Inline Message Tray -->
+                    <div id="admin-alert-container" style="display: none;"></div>
+
+                    <form id="ajax-admin-form" method="POST" novalidate>
+                        {% csrf_token %}
+
+                        <!-- Email Input -->
+                        <div class="mb-3">
+                            <label for="admin-email" class="form-label small fw-bold mb-1" style="color: #cbd5e1;">Developer Email</label>
+                            <input type="email" id="admin-email" class="form-control form-control-dark py-2 px-3" placeholder="operator@domain.com" required autofocus>
+                        </div>
+
+                        <!-- Password Input -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="admin-password" class="form-label small fw-bold mb-0" style="color: #cbd5e1;">Access Credentials</label>
+                            </div>
+                            
+                            <div class="input-group overflow-hidden" style="border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px;">
+                                <input type="password" id="admin-password" class="form-control form-control-dark py-2 px-3 border-0" placeholder="••••••••" required>
+                                <button type="button" class="btn btn-dark border-0 px-3" id="toggle-admin-password" style="background: rgba(15, 23, 42, 0.8);">
+                                    <i class="fa-regular fa-eye text-muted" id="admin-eye-icon"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Submit Trigger -->
+                        <button type="submit" class="btn btn-admin-glow w-100 py-2.5 fw-semibold mt-2" id="admin-submit-btn">
+                            Initialize Session
+                        </button>
+                    </form>
+
+                    <div class="mt-4 pt-3 border-top border-secondary border-opacity-25 text-center">
+                        <a href="{% url 'login' %}" class="portal-link text-decoration-none">
+                            <i class="fa-solid fa-arrow-left-long me-1"></i> Switch to Shopper Portal
+                        </a>
+                    </div>
+                </div>
+
+                <div class="text-center mt-3">
+                    <p class="text-muted" style="font-size: 11.5px; color: #475569 !important;">
+                        IP Address: logging active. Unauthorized access attempts violate security policies and are subject to immediate termination.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Show/Hide Password Toggle logic
+    const toggleAdminBtn = document.getElementById('toggle-admin-password');
+    const adminPassInput = document.getElementById('admin-password');
+    const adminEyeIcon = document.getElementById('admin-eye-icon');
+
+    toggleAdminBtn.addEventListener('click', () => {
+        if (adminPassInput.type === 'password') {
+            adminPassInput.type = 'text';
+            adminEyeIcon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            adminPassInput.type = 'password';
+            adminEyeIcon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    });
+
+    // AJAX Admin Login submission logic
+    const adminForm = document.getElementById('ajax-admin-form');
+    const adminAlertContainer = document.getElementById('admin-alert-container');
+    const adminSubmitBtn = document.getElementById('admin-submit-btn');
+
+    adminForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('admin-email').value;
+        const pass = adminPassInput.value;
+
+        if (!email || !pass) {
+            showAdminAlert("Credentials fields cannot be empty.", "danger");
+            return;
+        }
+
+        // Loading state
+        adminSubmitBtn.disabled = true;
+        adminSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Connecting...';
+        adminAlertContainer.style.display = 'none';
+
+        try {
+            const response = await fetch("{% url 'api_admin_login' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    email: email,
+                    password: pass
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showAdminAlert(result.message, "success");
+                // Wait 1 sec for visual effect then redirect to next parameter or admin dashboard
+                setTimeout(() => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const nextParam = result.redirect_url || urlParams.get('next') || "{% url 'admin_dashboard' %}";
+                    window.location.href = nextParam;
+                }, 800);
+            } else {
+                showAdminAlert(result.error || "Authentication rejected.", "danger");
+                adminSubmitBtn.disabled = false;
+                adminSubmitBtn.innerHTML = 'Initialize Session';
+            }
+        } catch (error) {
+            showAdminAlert("Operator Pipeline offline. Check server availability.", "danger");
+            adminSubmitBtn.disabled = false;
+            adminSubmitBtn.innerHTML = 'Initialize Session';
+        }
+    });
+
+    function showAdminAlert(msg, tag) {
+        adminAlertContainer.innerHTML = `
+            <div class="alert alert-${tag} d-flex align-items-center py-2 px-3 rounded-3 border-0 mb-3 fs-7" role="alert" style="font-size: 12.5px; background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25);">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                <div>${msg}</div>
+            </div>
+        `;
+        // Handle success class coloring overrides
+        if (tag === 'success') {
+            adminAlertContainer.querySelector('.alert').style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+            adminAlertContainer.querySelector('.alert').style.color = '#10b981';
+            adminAlertContainer.querySelector('.alert').style.borderColor = 'rgba(16, 185, 129, 0.25)';
+            adminAlertContainer.querySelector('i').className = 'fa-solid fa-circle-check me-2';
+        }
+        adminAlertContainer.style.display = 'block';
+    }
+</script>
+{% endblock %}

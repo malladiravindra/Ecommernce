@@ -11,6 +11,8 @@ urlpatterns = [
 
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('ajax-login/', views.ajax_login_view, name='api_login'),
+    path('admin-login/', views.admin_login_view, name='admin_login'),
+    path('ajax-admin-login/', views.ajax_admin_login_view, name='api_admin_login'),
     path('logout/', views.custom_logout_view, name='logout'),
     path('register/', views.register_view, name='register'),
     path('dashboard/', views.UserDashboardView.as_view(), name='user_dashboard'),

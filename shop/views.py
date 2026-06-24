@@ -50,10 +50,15 @@ def ajax_login_view(request):
                 
                 # Session strictly expires when the browser closes (mandatory login every time)
                 request.session.set_expiry(0)
+                
+                redirect_url = None
+                if user.is_staff or user.is_superuser:
+                    redirect_url = '/admin-dashboard/'
                     
                 return JsonResponse({
                     'success': True, 
-                    'message': 'Login successful. Forwarding...'
+                    'message': 'Login successful. Forwarding...',
+                    'redirect_url': redirect_url
                 })
             else:
                 return JsonResponse({
@@ -63,6 +68,66 @@ def ajax_login_view(request):
                 
         except json.JSONDecodeError:
             return JsonResponse({'success': False, 'error': 'Invalid transaction request.'}, status=400)
+            
+    return JsonResponse({'success': False, 'error': 'Method unavailable.'}, status=405)
+
+
+def admin_login_view(request):
+    if request.user.is_authenticated:
+        if request.user.is_staff or request.user.is_superuser:
+            return redirect('admin_dashboard')
+        return redirect('home')
+    return render(request, 'registration/admin_login.html')
+
+
+@csrf_exempt
+def ajax_admin_login_view(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            email = data.get('email')
+            password = data.get('password')
+            
+            if not email or '@' not in email:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Please enter a valid email address.'
+                }, status=400)
+            
+            username = None
+            try:
+                user_obj = User.objects.get(email__iexact=email)
+                username = user_obj.username
+            except User.DoesNotExist:
+                pass
+            
+            user = None
+            if username:
+                user = authenticate(request, username=username, password=password)
+            
+            if user is not None:
+                if not (user.is_staff or user.is_superuser):
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Access denied. This portal is restricted to Developers and Administrators.'
+                    }, status=403)
+                
+                auth_login(request, user)
+                request.session.set_expiry(0)
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Developer Authentication Successful. Connecting to Dashboard...',
+                    'redirect_url': '/admin-dashboard/'
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid Developer credentials. Access Denied.'
+                }, status=400)
+                
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid request structure.'}, status=400)
             
     return JsonResponse({'success': False, 'error': 'Method unavailable.'}, status=405)
 
