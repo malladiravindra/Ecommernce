@@ -1,204 +1,739 @@
 {% extends "index.html" %}
-{% block title %}My Account Dashboard | Shopping_App{% endblock %}
+{% block title %}My Dashboard — Shopping_App{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --dash-sidebar-w: 260px;
+        --dash-purple:    #7c3aed;
+        --dash-indigo:    #4f46e5;
+        --dash-border:    #e5e7eb;
+        --dash-bg:        #f8f9fc;
+        --dash-card:      #ffffff;
+        --dash-text:      #111827;
+        --dash-muted:     #6b7280;
+        --dash-radius:    14px;
+    }
+
+    .dash-layout {
+        display: flex;
+        min-height: calc(100vh - 70px);
+        background: var(--dash-bg);
+    }
+
+    /* ── Sidebar ── */
+    .dash-sidebar {
+        width: var(--dash-sidebar-w);
+        background: var(--dash-card);
+        border-right: 1px solid var(--dash-border);
+        display: flex;
+        flex-direction: column;
+        position: sticky;
+        top: 70px;
+        height: calc(100vh - 70px);
+        overflow-y: auto;
+        flex-shrink: 0;
+    }
+
+    .dash-sidebar-header {
+        padding: 24px 20px 16px;
+        border-bottom: 1px solid var(--dash-border);
+    }
+    .dash-sidebar-avatar {
+        width: 52px; height: 52px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #7c3aed, #ec4899);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px; font-weight: 700; color: #fff;
+        flex-shrink: 0;
+        box-shadow: 0 4px 12px rgba(124,58,237,0.35);
+    }
+    .dash-sidebar-name { font-size: 15px; font-weight: 700; color: var(--dash-text); }
+    .dash-sidebar-email { font-size: 12px; color: var(--dash-muted); }
+
+    .dash-nav { padding: 12px 10px; flex: 1; }
+    .dash-nav-section { font-size: 10.5px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.8px; padding: 8px 12px 4px; }
+    .dash-nav-link {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 14px; font-weight: 500;
+        color: var(--dash-muted);
+        text-decoration: none;
+        transition: all 0.18s;
+        margin-bottom: 2px;
+    }
+    .dash-nav-link:hover { background: #f5f3ff; color: var(--dash-purple); }
+    .dash-nav-link.active { background: linear-gradient(135deg, #f5f3ff, #ede9fe); color: var(--dash-purple); font-weight: 600; }
+    .dash-nav-link i { width: 18px; text-align: center; font-size: 15px; }
+    .dash-nav-link .nav-badge { margin-left: auto; background: var(--dash-purple); color: #fff; border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+
+    .dash-nav-logout { padding: 12px 10px; border-top: 1px solid var(--dash-border); }
+
+    /* ── Main Content ── */
+    .dash-main {
+        flex: 1;
+        padding: 28px 28px 48px;
+        overflow-x: hidden;
+        min-width: 0;
+    }
+
+    /* ── Page Header ── */
+    .dash-page-title { font-size: 22px; font-weight: 800; color: var(--dash-text); margin-bottom: 4px; }
+    .dash-page-sub   { font-size: 13.5px; color: var(--dash-muted); margin-bottom: 28px; }
+
+    /* ── Welcome Card ── */
+    .welcome-card {
+        background: linear-gradient(135deg, #1e1033 0%, #2d1065 50%, #1a1a4e 100%);
+        border-radius: var(--dash-radius);
+        padding: 28px 32px;
+        margin-bottom: 28px;
+        position: relative;
+        overflow: hidden;
+        color: #fff;
+    }
+    .welcome-card::before {
+        content: '\f625';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        position: absolute;
+        right: -20px; bottom: -30px;
+        font-size: 160px;
+        opacity: 0.06;
+        color: #fff;
+    }
+    .welcome-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.12);
+        color: #c4b5fd;
+        font-size: 11px; font-weight: 600;
+        letter-spacing: 0.5px; text-transform: uppercase;
+        padding: 4px 12px;
+        border-radius: 20px;
+        margin-bottom: 10px;
+    }
+    .welcome-name { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+    .welcome-meta { font-size: 13px; color: rgba(255,255,255,0.6); }
+
+    /* ── Stat Cards ── */
+    .stat-card {
+        background: var(--dash-card);
+        border-radius: var(--dash-radius);
+        padding: 20px;
+        border: 1px solid var(--dash-border);
+        transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .stat-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.08); transform: translateY(-2px); }
+    .stat-icon {
+        width: 44px; height: 44px;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 18px; flex-shrink: 0;
+        margin-bottom: 14px;
+    }
+    .stat-value { font-size: 28px; font-weight: 800; color: var(--dash-text); line-height: 1; margin-bottom: 4px; }
+    .stat-label { font-size: 12.5px; color: var(--dash-muted); font-weight: 500; }
+
+    /* ── Section Card ── */
+    .section-card {
+        background: var(--dash-card);
+        border-radius: var(--dash-radius);
+        border: 1px solid var(--dash-border);
+        overflow: hidden;
+    }
+    .section-card-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--dash-border);
+    }
+    .section-card-title { font-size: 15px; font-weight: 700; color: var(--dash-text); }
+    .section-card-body  { padding: 0; }
+
+    /* ── Orders Table ── */
+    .orders-table { width: 100%; border-collapse: collapse; }
+    .orders-table th {
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.6px; color: var(--dash-muted);
+        padding: 12px 16px; background: #fafafa;
+        border-bottom: 1px solid var(--dash-border);
+        text-align: left;
+    }
+    .orders-table td {
+        padding: 14px 16px;
+        font-size: 13.5px;
+        border-bottom: 1px solid #f3f4f6;
+        color: var(--dash-text);
+        vertical-align: middle;
+    }
+    .orders-table tr:last-child td { border-bottom: none; }
+    .orders-table tr:hover td { background: #fafafa; }
+
+    /* ── Status Badges ── */
+    .status-badge {
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 11.5px; font-weight: 600;
+        display: inline-flex; align-items: center; gap: 4px;
+    }
+    .status-processing { background: #fef3c7; color: #d97706; }
+    .status-shipped    { background: #dbeafe; color: #2563eb; }
+    .status-delivered  { background: #d1fae5; color: #059669; }
+    .status-pending    { background: #f3f4f6; color: #6b7280; }
+    .status-cancelled  { background: #fee2e2; color: #dc2626; }
+
+    /* ── Quick Action Links ── */
+    .quick-action-link {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 20px;
+        border-bottom: 1px solid #f3f4f6;
+        text-decoration: none;
+        color: var(--dash-text);
+        font-size: 14px; font-weight: 500;
+        transition: background 0.15s;
+    }
+    .quick-action-link:last-child { border-bottom: none; }
+    .quick-action-link:hover { background: #fafafa; color: var(--dash-purple); }
+    .quick-action-icon {
+        width: 36px; height: 36px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 14px;
+        margin-right: 12px;
+        flex-shrink: 0;
+    }
+
+    /* ── Empty State ── */
+    .empty-state { padding: 48px 24px; text-align: center; }
+    .empty-icon { font-size: 48px; color: #d1d5db; margin-bottom: 12px; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--dash-text); margin-bottom: 6px; }
+    .empty-sub { font-size: 13px; color: var(--dash-muted); margin-bottom: 20px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+        .dash-sidebar { display: none; }
+        .dash-main { padding: 16px; }
+    }
+
+    /* Dark mode support */
+    [data-theme="dark"] .dash-layout { background: #0f0f0f; }
+    [data-theme="dark"] .dash-sidebar { background: #1a1a1a; border-color: #2a2a2a; }
+    [data-theme="dark"] .stat-card, [data-theme="dark"] .section-card { background: #1a1a1a; border-color: #2a2a2a; }
+    [data-theme="dark"] .orders-table th { background: #222; }
+    [data-theme="dark"] .orders-table tr:hover td { background: #222; }
+    [data-theme="dark"] .quick-action-link:hover { background: #222; }
+    [data-theme="dark"] .dash-nav-link:hover, [data-theme="dark"] .dash-nav-link.active { background: rgba(124,58,237,0.15); }
+    [data-theme="dark"] .section-card-header, [data-theme="dark"] .dash-sidebar-header, [data-theme="dark"] .dash-nav-logout { border-color: #2a2a2a; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <!-- Welcome Header -->
-    <div class="row mb-5">
-        <div class="col-12">
-            <div class="card border-0 rounded-4 p-4 shadow-sm bg-gradient-premium text-white position-relative overflow-hidden" style="background: linear-gradient(135deg, #111 0%, #2a2a2a 100%);">
-                <!-- Decorative background shapes -->
-                <div class="position-absolute opacity-10 end-0 bottom-0" style="font-size: 180px; transform: translate(30px, 50px);">
-                    <i class="fa-solid fa-gauge-high"></i>
-                </div>
-                <div class="position-relative z-index-1">
-                    <span class="badge bg-accent mb-2 px-3 py-2 text-uppercase fw-semibold" style="background-color: var(--accent-color); font-size: 11px; letter-spacing: 0.5px;">Customer Area</span>
-                    <h1 class="display-5 fw-bold mb-2">Welcome back, {{ user.username }}!</h1>
-                    <p class="text-white-50 mb-0"><i class="fa-regular fa-envelope me-2"></i> {{ user.email }} &nbsp;|&nbsp; <i class="fa-regular fa-calendar me-2"></i> Member since {{ user.date_joined|date:"F Y" }}</p>
+<div class="dash-layout">
+
+    <!-- ═══════ SIDEBAR ═══════ -->
+    <aside class="dash-sidebar">
+        <div class="dash-sidebar-header">
+            <div class="d-flex align-items-center gap-3">
+                <div class="dash-sidebar-avatar">{{ user.username|first|upper }}</div>
+                <div>
+                    <div class="dash-sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+                    <div class="dash-sidebar-email">{{ user.email }}</div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Quick Stats Grid -->
-    <div class="row g-4 mb-5">
-        <!-- Orders Metric -->
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 rounded-4 p-4 shadow-sm h-100 transition-hover" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="rounded-3 p-3 bg-primary-subtle text-primary">
-                        <i class="fa-solid fa-box fs-4"></i>
+        <nav class="dash-nav">
+            <div class="dash-nav-section">Main Menu</div>
+            <a href="{% url 'user_dashboard' %}" class="dash-nav-link active">
+                <i class="fa-solid fa-gauge-high"></i> Dashboard
+            </a>
+            <a href="{% url 'order_list' %}" class="dash-nav-link">
+                <i class="fa-solid fa-box"></i> My Orders
+                {% if orders_count > 0 %}<span class="nav-badge">{{ orders_count }}</span>{% endif %}
+            </a>
+            <a href="{% url 'wishlist' %}" class="dash-nav-link">
+                <i class="fa-solid fa-heart"></i> Wishlist
+                {% if wishlist_count > 0 %}<span class="nav-badge">{{ wishlist_count }}</span>{% endif %}
+            </a>
+            <a href="{% url 'cart_detail' %}" class="dash-nav-link">
+                <i class="fa-solid fa-cart-shopping"></i> Cart
+                {% if cart_count > 0 %}<span class="nav-badge">{{ cart_count }}</span>{% endif %}
+            </a>
+
+            <div class="dash-nav-section mt-2">Account</div>
+            <a href="{% url 'shipping_address_list' %}" class="dash-nav-link">
+                <i class="fa-solid fa-location-dot"></i> Addresses
+                {% if addresses_count > 0 %}<span class="nav-badge">{{ addresses_count }}</span>{% endif %}
+            </a>
+            <a href="{% url 'conversation_list' %}" class="dash-nav-link">
+                <i class="fa-solid fa-comments"></i> Messages
+                {% if chat_count > 0 %}<span class="nav-badge">{{ chat_count }}</span>{% endif %}
+            </a>
+            <a href="{% url 'forgot_password' %}" class="dash-nav-link">
+                <i class="fa-solid fa-key"></i> Change Password
+            </a>
+        </nav>
+
+        <div class="dash-nav-logout">
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="dash-nav-link w-100 border-0 bg-transparent text-start" style="color:#ef4444;">
+                    <i class="fa-solid fa-arrow-right-from-bracket" style="color:#ef4444;"></i> Sign Out
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <!-- ═══════ MAIN CONTENT ═══════ -->
+    <main class="dash-main">
+
+        <!-- Page Header -->
+        <div class="dash-page-title">Account Dashboard</div>
+        <div class="dash-page-sub">Welcome back, <strong>{{ user.get_full_name|default:user.username }}</strong> — here's your activity overview.</div>
+
+        <!-- Welcome Card -->
+        <div class="welcome-card mb-4">
+            <div class="welcome-badge">Customer Account</div>
+            <div class="welcome-name">Hello, {{ user.username }}! 👋</div>
+            <div class="welcome-meta">
+                <i class="fa-regular fa-envelope me-1"></i> {{ user.email }}
+                &nbsp;•&nbsp;
+                <i class="fa-regular fa-calendar me-1"></i> Member since {{ user.date_joined|date:"F Y" }}
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#f5f3ff; color:#7c3aed;">
+                        <i class="fa-solid fa-box"></i>
                     </div>
-                    <span class="text-muted small fw-semibold">Orders</span>
+                    <div class="stat-value">{{ orders_count }}</div>
+                    <div class="stat-label">Total Orders</div>
                 </div>
-                <h3 class="fw-bold mb-1" style="font-size: 32px;">{{ orders_count }}</h3>
-                <p class="text-muted small mb-0">Total purchases placed</p>
             </div>
-        </div>
-
-        <!-- Wishlist Metric -->
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 rounded-4 p-4 shadow-sm h-100 transition-hover" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="rounded-3 p-3 bg-danger-subtle text-danger">
-                        <i class="fa-solid fa-heart fs-4"></i>
+            <div class="col-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#fdf2f8; color:#ec4899;">
+                        <i class="fa-solid fa-heart"></i>
                     </div>
-                    <span class="text-muted small fw-semibold">Wishlist</span>
+                    <div class="stat-value">{{ wishlist_count }}</div>
+                    <div class="stat-label">Wishlist Items</div>
                 </div>
-                <h3 class="fw-bold mb-1" style="font-size: 32px;">{{ wishlist_count }}</h3>
-                <p class="text-muted small mb-0">Saved products</p>
             </div>
-        </div>
-
-        <!-- Chats Metric -->
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 rounded-4 p-4 shadow-sm h-100 transition-hover" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="rounded-3 p-3 bg-success-subtle text-success">
-                        <i class="fa-solid fa-comments fs-4"></i>
+            <div class="col-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#f0fdf4; color:#16a34a;">
+                        <i class="fa-solid fa-cart-shopping"></i>
                     </div>
-                    <span class="text-muted small fw-semibold">Messages</span>
+                    <div class="stat-value">{{ cart_count }}</div>
+                    <div class="stat-label">Cart Items</div>
                 </div>
-                <h3 class="fw-bold mb-1" style="font-size: 32px;">{{ chat_count }}</h3>
-                <p class="text-muted small mb-0">Active conversations</p>
             </div>
-        </div>
-
-        <!-- Addresses Metric -->
-        <div class="col-6 col-lg-3">
-            <div class="card border-0 rounded-4 p-4 shadow-sm h-100 transition-hover" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="rounded-3 p-3 bg-warning-subtle text-warning">
-                        <i class="fa-solid fa-location-dot fs-4"></i>
+            <div class="col-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:#fff7ed; color:#ea580c;">
+                        <i class="fa-solid fa-location-dot"></i>
                     </div>
-                    <span class="text-muted small fw-semibold">Addresses</span>
+                    <div class="stat-value">{{ addresses_count }}</div>
+                    <div class="stat-label">Saved Addresses</div>
                 </div>
-                <h3 class="fw-bold mb-1" style="font-size: 32px;">{{ addresses_count }}</h3>
-                <p class="text-muted small mb-0">Saved locations</p>
             </div>
         </div>
-    </div>
 
-    <!-- Main Content Area -->
-    <div class="row g-4">
-        <!-- Recent Orders -->
-        <div class="col-lg-8">
-            <div class="card border-0 rounded-4 p-4 shadow-sm h-100" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="fw-bold mb-0">Recent Orders</h4>
-                    {% if recent_orders %}
-                    <a href="{% url 'order_list' %}" class="btn btn-link text-decoration-none fw-semibold text-accent p-0" style="color: var(--accent-color);">View All Orders <i class="fa-solid fa-arrow-right ms-1"></i></a>
-                    {% endif %}
+        <!-- Main Grid -->
+        <div class="row g-4">
+
+            <!-- Recent Orders -->
+            <div class="col-lg-8">
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <span class="section-card-title">
+                            <i class="fa-solid fa-clock-rotate-left me-2" style="color:#7c3aed;"></i>Recent Orders
+                        </span>
+                        {% if recent_orders %}
+                        <a href="{% url 'order_list' %}" style="font-size:13px; color:#7c3aed; font-weight:600; text-decoration:none;">
+                            View All <i class="fa-solid fa-arrow-right ms-1" style="font-size:11px;"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="section-card-body">
+                        {% if recent_orders %}
+                        <div style="overflow-x:auto;">
+                            <table class="orders-table">
+                                <thead>
+                                    <tr>
+                                        <th>Order</th>
+                                        <th>Date</th>
+                                        <th>Items</th>
+                                        <th>Status</th>
+                                        <th>Total</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for order in recent_orders %}
+                                    <tr>
+                                        <td><strong>#{{ order.id }}</strong></td>
+                                        <td style="color:#6b7280;">{{ order.created_at|date:"M d, Y" }}</td>
+                                        <td>
+                                            {% for item in order.items.all|slice:":2" %}
+                                                <div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:130px;">{{ item.quantity }}× {{ item.product_name }}</div>
+                                            {% endfor %}
+                                            {% if order.items.count > 2 %}
+                                                <div style="font-size:11.5px; color:#9ca3af; font-style:italic;">+{{ order.items.count|add:"-2" }} more</div>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if order.status == 'Processing' %}
+                                                <span class="status-badge status-processing"><i class="fa-solid fa-rotate" style="font-size:9px;"></i> {{ order.status }}</span>
+                                            {% elif order.status == 'Shipped' %}
+                                                <span class="status-badge status-shipped"><i class="fa-solid fa-truck" style="font-size:9px;"></i> {{ order.status }}</span>
+                                            {% elif order.status == 'Delivered' %}
+                                                <span class="status-badge status-delivered"><i class="fa-solid fa-check-double" style="font-size:9px;"></i> {{ order.status }}</span>
+                                            {% elif order.status == 'Cancelled' %}
+                                                <span class="status-badge status-cancelled"><i class="fa-solid fa-xmark" style="font-size:9px;"></i> {{ order.status }}</span>
+                                            {% else %}
+                                                <span class="status-badge status-pending">{{ order.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><strong>₹{{ order.total_price }}</strong></td>
+                                        <td>
+                                            <a href="{% url 'order_detail' order.id %}" style="font-size:12.5px; color:#7c3aed; font-weight:600; text-decoration:none; white-space:nowrap;">Details →</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="empty-state">
+                            <div class="empty-icon"><i class="fa-solid fa-receipt"></i></div>
+                            <div class="empty-title">No orders yet</div>
+                            <div class="empty-sub">Start discovering curated collections and place your first order!</div>
+                            <a href="{% url 'product_list' %}" style="display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;padding:10px 20px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(124,58,237,0.35);">
+                                <i class="fa-solid fa-bag-shopping"></i> Start Shopping
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
+            </div>
 
-                {% if recent_orders %}
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="border-0 rounded-start-3">Order ID</th>
-                                <th class="border-0">Date Placed</th>
-                                <th class="border-0">Products</th>
-                                <th class="border-0">Status</th>
-                                <th class="border-0">Total</th>
-                                <th class="border-0 rounded-end-3 text-end">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for order in recent_orders %}
-                            <tr>
-                                <td class="fw-bold">#{{ order.id }}</td>
-                                <td class="text-muted">{{ order.created_at|date:"M d, Y" }}</td>
-                                <td>
-                                    <div class="d-flex flex-column gap-1">
-                                        {% for item in order.items.all|slice:":2" %}
-                                            <span class="small text-truncate" style="max-width: 180px;" title="{{ item.product_name }}">{{ item.quantity }}x {{ item.product_name }}</span>
-                                        {% endfor %}
-                                        {% if order.items.count > 2 %}
-                                            <span class="small text-muted fst-italic">+{{ order.items.count|add:"-2" }} more item(s)</span>
-                                        {% endif %}
+            <!-- Quick Actions -->
+            <div class="col-lg-4">
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <span class="section-card-title">
+                            <i class="fa-solid fa-bolt me-2" style="color:#7c3aed;"></i>Quick Actions
+                        </span>
+                    </div>
+                    <div class="section-card-body">
+                        <a href="{% url 'product_list' %}" class="quick-action-link">
+                            <div class="d-flex align-items-center">
+                                <div class="quick-action-icon" style="background:#f5f3ff; color:#7c3aed;"><i class="fa-solid fa-bag-shopping"></i></div>
+                                Browse Products
+                            </div>
+                            <i class="fa-solid fa-chevron-right" style="font-size:11px; color:#d1d5db;"></i>
+                        </a>
+                        <a href="{% url 'order_list' %}" class="quick-action-link">
+                            <div class="d-flex align-items-center">
+                                <div class="quick-action-icon" style="background:#eff6ff; color:#2563eb;"><i class="fa-solid fa-box"></i></div>
+                                Track Orders
+                            </div>
+                            <i class="fa-solid fa-chevron-right" style="font-size:11px; color:#d1d5db;"></i>
+                        </a>
+                        <a href="{% url 'wishlist' %}" class="quick-action-link">
+                            <div class="d-flex align-items-center">
+                                <div class="quick-action-icon" style="background:#fdf2f8; color:#ec4899;"><i class="fa-solid fa-heart"></i></div>
+                                My Wishlist
+                            </div>
+                            <i class="fa-solid fa-chevron-right" style="font-size:11px; color:#d1d5db;"></i>
+                        </a>
+                        <a href="{% url 'cart_detail' %}" class="quick-action-link">
+                            <div class="d-flex align-items-center">
+                                <div class="quick-action-icon" style="background:#f0fdf4; color:#16a34a;"><i class="fa-solid fa-cart-shopping"></i></div>
+                                View Cart
+                            </div>
+                            <i class="fa-solid fa-chevron-right" style="font-size:11px; color:#d1d5db;"></i>
+                        </a>
+                        <a href="{% url 'shipping_address_list' %}" class="quick-action-link">
+                            <div class="d-flex align-items-center">
+                                <div class="quick-action-icon" style="background:#fff7ed; color:#ea580c;"><i class="fa-solid fa-location-dot"></i></div>
+                                Manage Addresses
+                            </div>
+                            <i class="fa-solid fa-chevron-right" style="font-size:11px; color:#d1d5db;"></i>
+                        </a>
+                        <a href="{% url 'conversation_list' %}" class="quick-action-link">
+                            <div class="d-flex align-items-center">
+                                <div class="quick-action-icon" style="background:#f0fdfa; color:#0d9488;"><i class="fa-solid fa-comments"></i></div>
+                                Messages
+                            </div>
+                            <i class="fa-solid fa-chevron-right" style="font-size:11px; color:#d1d5db;"></i>
+                        </a>
+                        <a href="{% url 'forgot_password' %}" class="quick-action-link">
+                            <div class="d-flex align-items-center">
+                                <div class="quick-action-icon" style="background:#faf5ff; color:#9333ea;"><i class="fa-solid fa-key"></i></div>
+                                Change Password
+                            </div>
+                            <i class="fa-solid fa-chevron-right" style="font-size:11px; color:#d1d5db;"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- API & OAuth Credentials Grid -->
+        <div class="row g-4 mt-3">
+            <div class="col-12">
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <span class="section-card-title">
+                            <i class="fa-solid fa-key me-2" style="color:#7c3aed;"></i>API & OAuth 2.0 Credentials
+                        </span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 11px;">
+                            <i class="fa-solid fa-circle-nodes me-1"></i> Developer Integration Active
+                        </span>
+                    </div>
+                    <div class="section-card-body p-4">
+                        <div class="row g-4">
+                            <!-- JWT Session Details -->
+                            <div class="col-lg-8">
+                                <h5 class="fw-bold mb-3 d-flex align-items-center gap-2" style="font-size: 15px;">
+                                    <i class="fa-solid fa-shield-halved text-primary"></i> JWT Authentication Token
+                                    <span id="jwt-status-badge" class="badge rounded-pill bg-secondary-subtle text-secondary" style="font-size: 11px;">Checking...</span>
+                                </h5>
+                                
+                                <!-- Access Token -->
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-semibold">JWT Access Token</label>
+                                    <div class="input-group">
+                                        <input type="password" id="jwt-access-input" class="form-control form-control-sm text-monospace bg-light border-end-0" style="font-family: monospace; font-size: 12.5px;" value="" readonly>
+                                        <button class="btn btn-outline-secondary border-start-0" type="button" onclick="toggleTokenVisibility('jwt-access-input')">
+                                            <i class="fa-regular fa-eye" id="jwt-access-input-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="copyToken('jwt-access-input', 'Access Token')">
+                                            <i class="fa-regular fa-copy"></i> Copy
+                                        </button>
                                     </div>
-                                </td>
-                                <td>
-                                    {% if order.status == 'Processing' %}
-                                        <span class="badge bg-warning-subtle text-warning rounded-pill px-3 py-2"><i class="fa-solid fa-rotate me-1"></i> {{ order.status }}</span>
-                                    {% elif order.status == 'Shipped' %}
-                                        <span class="badge bg-info-subtle text-info rounded-pill px-3 py-2"><i class="fa-solid fa-truck me-1"></i> {{ order.status }}</span>
-                                    {% elif order.status == 'Delivered' %}
-                                        <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2"><i class="fa-solid fa-check-double me-1"></i> {{ order.status }}</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-2">{{ order.status }}</span>
-                                    {% endif %}
-                                </td>
-                                <td class="fw-semibold">${{ order.total_price }}</td>
-                                <td class="text-end">
-                                    <a href="{% url 'order_detail' order.id %}" class="btn btn-sm btn-outline-dark rounded-3 px-3 py-1 fw-semibold">Details</a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-5">
-                    <div class="text-muted mb-3" style="font-size: 54px;">
-                        <i class="fa-solid fa-receipt opacity-25"></i>
+                                </div>
+
+                                <!-- Refresh Token -->
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small fw-semibold">JWT Refresh Token</label>
+                                    <div class="input-group">
+                                        <input type="password" id="jwt-refresh-input" class="form-control form-control-sm text-monospace bg-light border-end-0" style="font-family: monospace; font-size: 12.5px;" value="" readonly>
+                                        <button class="btn btn-outline-secondary border-start-0" type="button" onclick="toggleTokenVisibility('jwt-refresh-input')">
+                                            <i class="fa-regular fa-eye" id="jwt-refresh-input-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="copyToken('jwt-refresh-input', 'Refresh Token')">
+                                            <i class="fa-regular fa-copy"></i> Copy
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div class="d-flex flex-wrap gap-2 mt-3">
+                                    <button class="btn btn-sm btn-primary d-flex align-items-center gap-1" onclick="regenerateJWT()" id="regen-jwt-btn">
+                                        <i class="fa-solid fa-rotate"></i> Re-generate Tokens
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1" onclick="refreshJWT()" id="refresh-jwt-btn">
+                                        <i class="fa-solid fa-arrows-rotate"></i> Refresh Access Token
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1" onclick="revokeJWT()">
+                                        <i class="fa-solid fa-ban"></i> Revoke Credentials
+                                    </button>
+                                </div>
+                                <div id="jwt-action-msg" class="mt-2 small text-success" style="display: none;"></div>
+                            </div>
+
+                            <!-- OAuth 2.0 Connections -->
+                            <div class="col-lg-4">
+                                <h5 class="fw-bold mb-3 d-flex align-items-center gap-2" style="font-size: 15px;">
+                                    <i class="fa-solid fa-user-lock text-success"></i> Connected OAuth 2.0 Providers
+                                </h5>
+                                
+                                <div class="p-3 border rounded-3 bg-light">
+                                    {% load socialaccount %}
+                                    {% get_social_accounts user as accounts %}
+                                    
+                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="bg-white border rounded-circle p-2 d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
+                                                <i class="fa-brands fa-google text-danger" style="font-size: 18px;"></i>
+                                            </div>
+                                            <div>
+                                                <div class="fw-semibold small">Google Sign-In</div>
+                                                {% if accounts.google %}
+                                                    <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 9.5px;">Linked</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 9.5px;">Not Linked</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            {% if accounts.google %}
+                                                <span class="text-muted small">{{ accounts.google.0.extra_data.email|default:user.email }}</span>
+                                            {% else %}
+                                                <a href="{% provider_login_url 'google' process='connect' %}" class="btn btn-xs btn-outline-primary fw-semibold px-2 py-1" style="font-size: 11px; text-decoration: none;">
+                                                    Link
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <p class="text-muted mb-0" style="font-size: 11px;">
+                                        Link your social accounts to log in instantly using Google OAuth 2.0 without email/password credentials.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <h5>No orders found yet</h5>
-                    <p class="text-muted small max-width-350 mx-auto mb-4">Start discovering curated luxury collections and place your first order today!</p>
-                    <a href="{% url 'product_list' %}" class="btn btn-glow px-4 py-2 fw-semibold text-white">Start Shopping</a>
                 </div>
-                {% endif %}
             </div>
         </div>
 
-        <!-- Quick Links Panel -->
-        <div class="col-lg-4">
-            <div class="card border-0 rounded-4 p-4 shadow-sm h-100" style="background-color: var(--card-bg); border: 1px solid rgba(0,0,0,0.05) !important;">
-                <h4 class="fw-bold mb-4">Quick Actions</h4>
+        <!-- JS for JWT dashboard UI -->
+        <script>
+            function updateJWTUI() {
+                const access = localStorage.getItem('access_token');
+                const refresh = localStorage.getItem('refresh_token');
+                const statusBadge = document.getElementById('jwt-status-badge');
                 
-                <div class="d-flex flex-column gap-2">
-                    <a href="{% url 'shipping_address_list' %}" class="btn btn-outline-premium text-start py-3 px-3 rounded-3 d-flex align-items-center justify-content-between transition-hover">
-                        <div>
-                            <i class="fa-solid fa-location-dot me-3 text-accent" style="color: var(--accent-color);"></i>
-                            <span class="fw-semibold">Manage Addresses</span>
-                        </div>
-                        <i class="fa-solid fa-chevron-right small text-muted"></i>
-                    </a>
+                document.getElementById('jwt-access-input').value = access || '';
+                document.getElementById('jwt-refresh-input').value = refresh || '';
 
-                    <a href="{% url 'wishlist' %}" class="btn btn-outline-premium text-start py-3 px-3 rounded-3 d-flex align-items-center justify-content-between transition-hover">
-                        <div>
-                            <i class="fa-solid fa-heart me-3 text-accent" style="color: var(--accent-color);"></i>
-                            <span class="fw-semibold">My Saved Items</span>
-                        </div>
-                        <i class="fa-solid fa-chevron-right small text-muted"></i>
-                    </a>
+                if (access) {
+                    statusBadge.innerText = 'Active (Stored)';
+                    statusBadge.className = 'badge rounded-pill bg-success-subtle text-success border border-success-subtle px-2 py-0.5';
+                } else {
+                    statusBadge.innerText = 'Not Configured';
+                    statusBadge.className = 'badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5';
+                }
+            }
 
-                    <a href="{% url 'conversation_list' %}" class="btn btn-outline-premium text-start py-3 px-3 rounded-3 d-flex align-items-center justify-content-between transition-hover">
-                        <div>
-                            <i class="fa-solid fa-comments me-3 text-accent" style="color: var(--accent-color);"></i>
-                            <span class="fw-semibold">Message History</span>
-                        </div>
-                        <i class="fa-solid fa-chevron-right small text-muted"></i>
-                    </a>
+            function toggleTokenVisibility(inputId) {
+                const input = document.getElementById(inputId);
+                const eye = document.getElementById(inputId + '-eye');
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    eye.className = 'fa-regular fa-eye-slash';
+                } else {
+                    input.type = 'password';
+                    eye.className = 'fa-regular fa-eye';
+                }
+            }
 
-                    <a href="{% url 'password_reset' %}" class="btn btn-outline-premium text-start py-3 px-3 rounded-3 d-flex align-items-center justify-content-between transition-hover">
-                        <div>
-                            <i class="fa-solid fa-key me-3 text-accent" style="color: var(--accent-color);"></i>
-                            <span class="fw-semibold">Request Password Reset</span>
-                        </div>
-                        <i class="fa-solid fa-chevron-right small text-muted"></i>
-                    </a>
-                </div>
+            function copyToken(inputId, label) {
+                const input = document.getElementById(inputId);
+                if (!input.value) return;
+                
+                navigator.clipboard.writeText(input.value).then(() => {
+                    const msgDiv = document.getElementById('jwt-action-msg');
+                    msgDiv.innerText = `${label} copied to clipboard!`;
+                    msgDiv.className = 'mt-2 small text-success';
+                    msgDiv.style.display = 'block';
+                    setTimeout(() => { msgDiv.style.display = 'none'; }, 2500);
+                });
+            }
 
-                <div class="mt-4 pt-3 border-top text-center">
-                    <form action="{% url 'logout' %}" method="post" class="d-inline w-100">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-link text-danger text-decoration-none fw-semibold p-0"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i> Log out from this device</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
+            async function regenerateJWT() {
+                const btn = document.getElementById('regen-jwt-btn');
+                const oldText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Generating...';
+
+                try {
+                    const res = await window.fetch('/api/token/session/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        localStorage.setItem('access_token', data.access);
+                        localStorage.setItem('refresh_token', data.refresh);
+                        updateJWTUI();
+                        
+                        const msgDiv = document.getElementById('jwt-action-msg');
+                        msgDiv.innerText = 'JWT Credentials successfully generated from session!';
+                        msgDiv.className = 'mt-2 small text-success';
+                        msgDiv.style.display = 'block';
+                        setTimeout(() => { msgDiv.style.display = 'none'; }, 2500);
+                    } else {
+                        throw new Error('Failed to generate tokens');
+                    }
+                } catch (err) {
+                    const msgDiv = document.getElementById('jwt-action-msg');
+                    msgDiv.innerText = 'Error generating JWT tokens. Ensure you are signed in.';
+                    msgDiv.className = 'mt-2 small text-danger';
+                    msgDiv.style.display = 'block';
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = oldText;
+                }
+            }
+
+            async function refreshJWT() {
+                const refresh = localStorage.getItem('refresh_token');
+                if (!refresh) {
+                    const msgDiv = document.getElementById('jwt-action-msg');
+                    msgDiv.innerText = 'No Refresh Token available. Generate credentials first.';
+                    msgDiv.className = 'mt-2 small text-warning';
+                    msgDiv.style.display = 'block';
+                    return;
+                }
+
+                const btn = document.getElementById('refresh-jwt-btn');
+                const oldText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Refreshing...';
+
+                try {
+                    const res = await window.fetch('/api/token/refresh/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                        body: JSON.stringify({ refresh })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        localStorage.setItem('access_token', data.access);
+                        updateJWTUI();
+                        
+                        const msgDiv = document.getElementById('jwt-action-msg');
+                        msgDiv.innerText = 'Access Token successfully rotated/refreshed!';
+                        msgDiv.className = 'mt-2 small text-success';
+                        msgDiv.style.display = 'block';
+                        setTimeout(() => { msgDiv.style.display = 'none'; }, 2500);
+                    } else {
+                        throw new Error('Failed to refresh');
+                    }
+                } catch (err) {
+                    const msgDiv = document.getElementById('jwt-action-msg');
+                    msgDiv.innerText = 'Failed to rotate token. Refresh Token might be expired.';
+                    msgDiv.className = 'mt-2 small text-danger';
+                    msgDiv.style.display = 'block';
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = oldText;
+                }
+            }
+
+            function revokeJWT() {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                updateJWTUI();
+                
+                const msgDiv = document.getElementById('jwt-action-msg');
+                msgDiv.innerText = 'JWT Credentials revoked and removed from local storage.';
+                msgDiv.className = 'mt-2 small text-warning';
+                msgDiv.style.display = 'block';
+                setTimeout(() => { msgDiv.style.display = 'none'; }, 2500);
+            }
+
+            // Init on load
+            document.addEventListener('DOMContentLoaded', updateJWTUI);
+            window.addEventListener('jwt_ready', updateJWTUI);
+        </script>
+    </main>
 </div>
 {% endblock %}

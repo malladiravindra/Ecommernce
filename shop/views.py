@@ -1,5 +1,7 @@
 import uuid
 import json
+import random
+from datetime import datetime, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
 from django.views.generic import ListView, DetailView, CreateView
@@ -8,11 +10,15 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from django.core.mail import send_mail
+from django.conf import settings
 from .forms import UserRegisterForm
+from rest_framework_simplejwt.tokens import RefreshToken
+
 
 from .models import (
     Category, Product, Cart, CartItem, Wishlist,
@@ -54,11 +60,14 @@ def ajax_login_view(request):
                 redirect_url = None
                 if user.is_staff or user.is_superuser:
                     redirect_url = '/admin-dashboard/'
-                    
+                
+                refresh = RefreshToken.for_user(user)
                 return JsonResponse({
                     'success': True, 
                     'message': 'Login successful. Forwarding...',
-                    'redirect_url': redirect_url
+                    'redirect_url': redirect_url,
+                    'access_token': str(refresh.access_token),
+                    'refresh_token': str(refresh)
                 })
             else:
                 return JsonResponse({
@@ -115,10 +124,13 @@ def ajax_admin_login_view(request):
                 auth_login(request, user)
                 request.session.set_expiry(0)
                 
+                refresh = RefreshToken.for_user(user)
                 return JsonResponse({
                     'success': True,
                     'message': 'Developer Authentication Successful. Connecting to Dashboard...',
-                    'redirect_url': '/admin-dashboard/'
+                    'redirect_url': '/admin-dashboard/',
+                    'access_token': str(refresh.access_token),
+                    'refresh_token': str(refresh)
                 })
             else:
                 return JsonResponse({
@@ -145,8 +157,185 @@ def register_view(request):
     return render(request, 'registration/register.html', {'form': form})
 
 
+# ----------------- OTP PASSWORD RESET FLOW ----------------- #
 
-# ----------------- CATALOG VIEWS ----------------- #
+@csrf_exempt
+def forgot_password_view(request):
+    """Step 1: Receive email, generate OTP, send via email."""
+    if request.method == 'GET':
+        if not request.user.is_authenticated:
+            return render(request, 'registration/forgot_password.html')
+        return redirect('home')
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid request.'}, status=400)
+
+        resend = data.get('resend', False)
+
+        # For resend, reuse the email stored in session
+        if resend:
+            email = request.session.get('otp_email')
+            if not email:
+                return JsonResponse({'success': False, 'error': 'Session expired. Please start over.'}, status=400)
+        else:
+            email = data.get('email', '').strip().lower()
+            if not email or '@' not in email:
+                return JsonResponse({'success': False, 'error': 'Please enter a valid email address.'}, status=400)
+
+        # Resend cooldown check (60 seconds)
+        last_sent = request.session.get('otp_last_sent')
+        if last_sent and not resend is False:
+            last_dt = datetime.fromisoformat(last_sent)
+            elapsed = (datetime.utcnow() - last_dt).total_seconds()
+            if elapsed < 60 and resend:
+                remaining = int(60 - elapsed)
+                return JsonResponse({'success': False, 'error': f'Please wait {remaining} seconds before resending.'}, status=429)
+
+        # Check user exists (silently succeed even if not, for security)
+        try:
+            user_obj = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            user_obj = None
+
+        # Generate 6-digit OTP
+        otp = str(random.randint(100000, 999999))
+        otp_expiry = (datetime.utcnow() + timedelta(minutes=5)).isoformat()
+
+        # Store OTP and metadata in session
+        request.session['otp_code']     = otp
+        request.session['otp_email']    = email
+        request.session['otp_expiry']   = otp_expiry
+        request.session['otp_used']     = False
+        request.session['otp_verified'] = False
+        request.session['otp_last_sent'] = datetime.utcnow().isoformat()
+
+        # Send email (prints to console if no SMTP configured)
+        if user_obj:
+            try:
+                send_mail(
+                    subject='Shopping_App — Your Password Reset OTP',
+                    message=(
+                        f'Hello {user_obj.username},\n\n'
+                        f'Your one-time password (OTP) for resetting your Shopping_App password is:\n\n'
+                        f'  {otp}\n\n'
+                        f'This OTP expires in 5 minutes. Do NOT share it with anyone.\n\n'
+                        f'If you did not request this, you can safely ignore this email.\n\n'
+                        f'— Shopping_App Security Team'
+                    ),
+                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@shopping-app.com'),
+                    recipient_list=[email],
+                    fail_silently=True,
+                )
+            except Exception:
+                pass  # Already fail_silently=True, console backend will print it
+
+        return JsonResponse({'success': True, 'message': 'OTP sent successfully.'})
+
+    return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
+
+
+@csrf_exempt
+def verify_otp_view(request):
+    """Step 2: Verify 6-digit OTP from session."""
+    if request.method == 'GET':
+        # Must have an active OTP session
+        if not request.session.get('otp_email'):
+            return redirect('forgot_password')
+        return render(request, 'registration/verify_otp.html')
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid request.'}, status=400)
+
+        entered_otp  = str(data.get('otp', '')).strip()
+        stored_otp   = request.session.get('otp_code')
+        otp_expiry   = request.session.get('otp_expiry')
+        otp_used     = request.session.get('otp_used', True)
+
+        if not stored_otp or not otp_expiry:
+            return JsonResponse({'success': False, 'error': 'No active OTP session. Please request a new OTP.'}, status=400)
+
+        if otp_used:
+            return JsonResponse({'success': False, 'error': 'This OTP has already been used. Please request a new one.'}, status=400)
+
+        # Expiry check
+        try:
+            expiry_dt = datetime.fromisoformat(otp_expiry)
+            if datetime.utcnow() > expiry_dt:
+                return JsonResponse({'success': False, 'error': 'OTP has expired. Please request a new one.'}, status=400)
+        except (ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'Invalid OTP session. Please start over.'}, status=400)
+
+        if entered_otp != stored_otp:
+            return JsonResponse({'success': False, 'error': 'Incorrect OTP. Please try again.'}, status=400)
+
+        # Mark OTP as used and verified
+        request.session['otp_used']     = True
+        request.session['otp_verified'] = True
+
+        return JsonResponse({'success': True, 'message': 'OTP verified successfully.'})
+
+    return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
+
+
+@csrf_exempt
+def reset_password_view(request):
+    """Step 3: Reset password after OTP verification."""
+    if request.method == 'GET':
+        if not request.session.get('otp_verified'):
+            return redirect('forgot_password')
+        return render(request, 'registration/reset_password.html')
+
+    if request.method == 'POST':
+        if not request.session.get('otp_verified'):
+            return JsonResponse({'success': False, 'error': 'OTP not verified. Please complete verification first.'}, status=403)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid request.'}, status=400)
+
+        new_password     = data.get('new_password', '')
+        confirm_password = data.get('confirm_password', '')
+
+        # Validation
+        if len(new_password) < 8:
+            return JsonResponse({'success': False, 'error': 'Password must be at least 8 characters.'}, status=400)
+        if not any(c.isupper() for c in new_password):
+            return JsonResponse({'success': False, 'error': 'Password must contain at least one uppercase letter.'}, status=400)
+        if not any(c.islower() for c in new_password):
+            return JsonResponse({'success': False, 'error': 'Password must contain at least one lowercase letter.'}, status=400)
+        if not any(c.isdigit() for c in new_password):
+            return JsonResponse({'success': False, 'error': 'Password must contain at least one number.'}, status=400)
+        import re
+        if not re.search(r'[^A-Za-z0-9]', new_password):
+            return JsonResponse({'success': False, 'error': 'Password must contain at least one special character.'}, status=400)
+        if new_password != confirm_password:
+            return JsonResponse({'success': False, 'error': 'Passwords do not match.'}, status=400)
+
+        email = request.session.get('otp_email')
+        try:
+            user_obj = User.objects.get(email__iexact=email)
+            user_obj.set_password(new_password)
+            user_obj.save()
+        except User.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'User account not found.'}, status=404)
+
+        # Clear OTP session data
+        for key in ['otp_code', 'otp_email', 'otp_expiry', 'otp_used', 'otp_verified', 'otp_last_sent']:
+            request.session.pop(key, None)
+
+        return JsonResponse({'success': True, 'message': 'Password changed successfully!'})
+
+    return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
+
+
+
 
 class HomeView(LoginRequiredMixin, View):
     def get(self, request):
@@ -575,16 +764,50 @@ class OrderDetailView(LoginRequiredMixin, DetailView):
 
 class AdminDashboardView(LoginRequiredMixin, View):
     def get(self, request):
-        # Restrict access to staff and superusers only
         if not request.user.is_staff:
             messages.error(request, "You do not have permission to access the admin dashboard.")
             return redirect('home')
-        
+
+        from django.db.models import Sum, Count
+        total_orders   = Order.objects.count()
+        total_products = Product.objects.count()
+        total_users    = User.objects.count()
+        total_revenue  = Order.objects.filter(payment_status=True).aggregate(rev=Sum('total_price'))['rev'] or 0
+        pending_orders = Order.objects.filter(status='Pending').count()
+        low_stock      = Product.objects.filter(stock__gt=0, stock__lte=5).count()
+        out_of_stock   = Product.objects.filter(stock=0).count()
+
+        recent_orders   = Order.objects.select_related('user').prefetch_related('items').order_by('-created_at')[:8]
+        recent_customers = User.objects.order_by('-date_joined')[:5]
+
+        # Monthly revenue data for chart (last 6 months)
+        from django.utils import timezone as tz
+        import json as json_mod
+        months_labels = []
+        months_data   = []
+        for i in range(5, -1, -1):
+            dt = tz.now() - timedelta(days=i*30)
+            label = dt.strftime('%b')
+            rev = Order.objects.filter(
+                payment_status=True,
+                created_at__year=dt.year,
+                created_at__month=dt.month
+            ).aggregate(s=Sum('total_price'))['s'] or 0
+            months_labels.append(label)
+            months_data.append(float(rev))
+
         context = {
-            'total_orders': Order.objects.count(),
-            'total_products': Product.objects.count(),
-            'total_users': User.objects.count(),
-            'recent_orders': Order.objects.prefetch_related('items').order_by('-created_at')[:5],
+            'total_orders':    total_orders,
+            'total_products':  total_products,
+            'total_users':     total_users,
+            'total_revenue':   total_revenue,
+            'pending_orders':  pending_orders,
+            'low_stock':       low_stock,
+            'out_of_stock':    out_of_stock,
+            'recent_orders':   recent_orders,
+            'recent_customers': recent_customers,
+            'chart_labels':    json_mod.dumps(months_labels),
+            'chart_data':      json_mod.dumps(months_data),
         }
         return render(request, 'shop/admin_dashboard.html', context)
 
@@ -592,19 +815,28 @@ class AdminDashboardView(LoginRequiredMixin, View):
 class UserDashboardView(LoginRequiredMixin, View):
     def get(self, request):
         user = request.user
-        orders_count = Order.objects.filter(user=user).count()
-        wishlist_count = Wishlist.objects.filter(user=user).count()
-        chat_count = Conversation.objects.filter(Q(customer=user) | Q(seller=user)).count()
+        orders_count    = Order.objects.filter(user=user).count()
+        wishlist_count  = Wishlist.objects.filter(user=user).count()
+        chat_count      = Conversation.objects.filter(Q(customer=user) | Q(seller=user)).count()
         addresses_count = ShippingAddress.objects.filter(user=user).count()
-        
+
+        # Cart item count
+        cart_count = 0
+        try:
+            cart_obj = Cart.objects.get(user=user)
+            cart_count = cart_obj.items.count()
+        except Cart.DoesNotExist:
+            pass
+
         recent_orders = Order.objects.filter(user=user).prefetch_related('items').order_by('-created_at')[:5]
-        
+
         context = {
-            'orders_count': orders_count,
-            'wishlist_count': wishlist_count,
-            'chat_count': chat_count,
+            'orders_count':    orders_count,
+            'wishlist_count':  wishlist_count,
+            'chat_count':      chat_count,
             'addresses_count': addresses_count,
-            'recent_orders': recent_orders,
+            'cart_count':      cart_count,
+            'recent_orders':   recent_orders,
         }
         return render(request, 'shop/dashboard.html', context)
 

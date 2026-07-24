@@ -219,18 +219,33 @@ ACCOUNT_EMAIL_VERIFICATION = 'none' # Skip verification links for dev speed
 ACCOUNT_SESSION_REMEMBER = True     # Config for "Remember Me"
 SOCIALACCOUNT_LOGIN_ON_GET = True   # Skip intermediate social login confirmation page
 
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': os.getenv('GOOGLE_OAUTH_CLIENT_ID', ''),
+            'secret': os.getenv('GOOGLE_OAUTH_CLIENT_SECRET', ''),
+            'key': ''
+        },
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        }
+    }
+}
+
+
 # Email System Configuration
-EMAIL_HOST = os.getenv('EMAIL_HOST')
-if EMAIL_HOST:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f"Shopping_App <{EMAIL_HOST_USER}>")
-else:
-    # Console Email Backend fallback for easy local development
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "malladiravindra1@gmail.com"
+EMAIL_HOST_PASSWORD = "ggokgbvmuyuosjgw"
+DEFAULT_FROM_EMAIL = "Shopping_App <malladiravindra1@gmail.com>"
+
 
 # DRF configurations with SimpleJWT support
 REST_FRAMEWORK = {

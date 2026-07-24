@@ -1,0 +1,500 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Shopping_App — Authentication{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Sign in securely to your Shopping_App account.{% endblock %}">
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --auth-purple:   #7c3aed;
+            --auth-indigo:   #4f46e5;
+            --auth-violet:   #9333ea;
+            --auth-pink:     #ec4899;
+            --auth-text:     #111827;
+            --auth-muted:    #6b7280;
+            --auth-border:   #e5e7eb;
+            --auth-bg-card:  rgba(255,255,255,0.97);
+            --auth-radius:   16px;
+            --auth-shadow:   0 25px 60px rgba(124,58,237,0.18), 0 8px 24px rgba(0,0,0,0.10);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0f0a1e;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* ── Animated Gradient Background ── */
+        .auth-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background: linear-gradient(135deg, #0f0a1e 0%, #1a0533 30%, #0d1b4b 60%, #0f0a1e 100%);
+            overflow: hidden;
+        }
+
+        .auth-bg-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            animation: orbFloat 8s ease-in-out infinite alternate;
+            opacity: 0.55;
+        }
+        .auth-bg-orb-1 {
+            width: 520px; height: 520px;
+            top: -120px; left: -100px;
+            background: radial-gradient(circle, #7c3aed 0%, #4f46e5 60%, transparent 100%);
+            animation-delay: 0s;
+        }
+        .auth-bg-orb-2 {
+            width: 420px; height: 420px;
+            bottom: -80px; right: -80px;
+            background: radial-gradient(circle, #ec4899 0%, #9333ea 60%, transparent 100%);
+            animation-delay: -3s;
+        }
+        .auth-bg-orb-3 {
+            width: 280px; height: 280px;
+            top: 40%; left: 55%;
+            background: radial-gradient(circle, #06b6d4 0%, #4f46e5 70%, transparent 100%);
+            animation-delay: -5s;
+        }
+        .auth-bg-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 48px 48px;
+        }
+
+        @keyframes orbFloat {
+            0%   { transform: translate(0,0) scale(1); }
+            100% { transform: translate(30px, 40px) scale(1.08); }
+        }
+
+        /* ── Wrapper ── */
+        .auth-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            justify-content: center;
+        }
+
+        /* ── Brand ── */
+        .auth-brand {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .auth-brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+        .auth-brand-icon {
+            width: 44px; height: 44px;
+            background: linear-gradient(135deg, #7c3aed, #ec4899);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 16px rgba(124,58,237,0.45);
+        }
+        .auth-brand-icon i { color: #fff; font-size: 20px; }
+        .auth-brand-name {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #fff 30%, #c4b5fd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .auth-brand-tagline {
+            color: rgba(255,255,255,0.45);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* ── Card ── */
+        .auth-card {
+            background: var(--auth-bg-card);
+            border-radius: var(--auth-radius);
+            box-shadow: var(--auth-shadow);
+            width: 100%;
+            max-width: 460px;
+            padding: 40px 40px 36px;
+            border: 1px solid rgba(255,255,255,0.12);
+            animation: cardIn 0.45s cubic-bezier(0.22,1,0.36,1) both;
+        }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(28px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .auth-card-title {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.4px;
+            color: var(--auth-text);
+            margin-bottom: 4px;
+        }
+        .auth-card-subtitle {
+            font-size: 13.5px;
+            color: var(--auth-muted);
+            margin-bottom: 28px;
+            line-height: 1.5;
+        }
+
+        /* ── Form Controls ── */
+        .auth-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1.5px solid var(--auth-border);
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            color: var(--auth-text);
+            background: #fafafa;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+            outline: none;
+        }
+        .auth-input:focus {
+            border-color: var(--auth-purple);
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(124,58,237,0.12);
+        }
+        .auth-input::placeholder { color: #9ca3af; }
+        .auth-input.is-invalid { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.10); }
+
+        .auth-input-group {
+            position: relative;
+        }
+        .auth-input-group .auth-input { padding-right: 44px; }
+        .auth-input-toggle {
+            position: absolute;
+            right: 13px; top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none; cursor: pointer;
+            color: #9ca3af;
+            font-size: 15px;
+            padding: 4px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+        .auth-input-toggle:hover { color: var(--auth-purple); }
+
+        .auth-form-group { margin-bottom: 18px; }
+
+        /* ── Primary Button ── */
+        .auth-btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14.5px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        .auth-btn-primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(124,58,237,0.35);
+        }
+        .auth-btn-primary:hover:not(:disabled) {
+            background: linear-gradient(135deg, #6d28d9 0%, #4338ca 100%);
+            box-shadow: 0 6px 22px rgba(124,58,237,0.50);
+            transform: translateY(-1px);
+        }
+        .auth-btn-primary:active:not(:disabled) { transform: translateY(0); }
+        .auth-btn-primary:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+
+        .auth-btn-outline {
+            background: transparent;
+            color: #374151;
+            border: 1.5px solid var(--auth-border);
+        }
+        .auth-btn-outline:hover {
+            background: #f9fafb;
+            border-color: #d1d5db;
+        }
+
+        /* ── Checkbox ── */
+        .auth-checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .auth-checkbox {
+            width: 16px; height: 16px;
+            accent-color: var(--auth-purple);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .auth-checkbox-label {
+            font-size: 13px;
+            color: #4b5563;
+            cursor: pointer;
+        }
+
+        /* ── Links ── */
+        .auth-link {
+            color: var(--auth-purple);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+        .auth-link:hover { color: var(--auth-indigo); text-decoration: underline; }
+
+        /* ── Divider ── */
+        .auth-divider {
+            display: flex; align-items: center; gap: 12px;
+            margin: 22px 0;
+            color: #9ca3af;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .auth-divider::before, .auth-divider::after {
+            content: ''; flex: 1;
+            height: 1px;
+            background: var(--auth-border);
+        }
+
+        /* ── Alert ── */
+        .auth-alert {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 18px;
+            display: flex; align-items: flex-start; gap: 8px;
+            animation: alertIn 0.3s ease;
+        }
+        @keyframes alertIn { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform: translateY(0); } }
+        .auth-alert-danger  { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .auth-alert-success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+        .auth-alert-info    { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+
+        /* ── Footer Text ── */
+        .auth-footer-text {
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 24px;
+        }
+        .auth-footer-note {
+            font-size: 11.5px;
+            color: #9ca3af;
+            text-align: center;
+            margin-top: 16px;
+            line-height: 1.6;
+        }
+
+        /* ── Password Strength ── */
+        .pw-strength-bar {
+            height: 3px;
+            border-radius: 2px;
+            background: #e5e7eb;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        .pw-strength-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.35s ease, background 0.35s ease;
+            width: 0%;
+        }
+        .pw-strength-text {
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        /* ── OTP Inputs ── */
+        .otp-inputs {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .otp-box {
+            width: 52px; height: 58px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+            color: var(--auth-text);
+            background: #fafafa;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+            outline: none;
+            font-family: 'Inter', sans-serif;
+        }
+        .otp-box:focus {
+            border-color: var(--auth-purple);
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(124,58,237,0.12);
+        }
+        .otp-box.filled {
+            border-color: var(--auth-purple);
+            background: #f5f3ff;
+        }
+
+        /* ── Timer ── */
+        .auth-timer {
+            font-size: 13px;
+            color: #6b7280;
+            text-align: center;
+            margin-top: 12px;
+        }
+        .auth-timer .countdown {
+            font-weight: 700;
+            color: var(--auth-purple);
+            font-variant-numeric: tabular-nums;
+        }
+        .auth-timer .countdown.expired { color: #ef4444; }
+
+        /* ── Spinner ── */
+        .auth-spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.65s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Step Indicator ── */
+        .auth-steps {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            margin-bottom: 28px;
+        }
+        .auth-step-dot {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700;
+            transition: all 0.3s;
+        }
+        .auth-step-dot.active {
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(124,58,237,0.4);
+        }
+        .auth-step-dot.done {
+            background: #d1fae5; color: #059669;
+        }
+        .auth-step-dot.pending {
+            background: #f3f4f6; color: #9ca3af;
+        }
+        .auth-step-line {
+            width: 40px; height: 2px;
+            background: #e5e7eb;
+        }
+        .auth-step-line.done { background: linear-gradient(90deg, #7c3aed, #4f46e5); }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            .auth-card { padding: 28px 22px 24px; }
+            .otp-box { width: 42px; height: 50px; font-size: 20px; }
+        }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="auth-bg">
+        <div class="auth-bg-orb auth-bg-orb-1"></div>
+        <div class="auth-bg-orb auth-bg-orb-2"></div>
+        <div class="auth-bg-orb auth-bg-orb-3"></div>
+        <div class="auth-bg-grid"></div>
+    </div>
+
+    <!-- Auth Wrapper -->
+    <div class="auth-wrapper">
+        <!-- Brand -->
+        <div class="auth-brand">
+            <a href="{% url 'login' %}" class="auth-brand-logo text-decoration-none">
+                <div class="auth-brand-icon">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                </div>
+                <div>
+                    <div class="auth-brand-name">Shopping_App</div>
+                    <div class="auth-brand-tagline">Premium E-Commerce</div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Auth Card -->
+        <div class="auth-card">
+            {% block auth_content %}{% endblock %}
+        </div>
+
+        <!-- Card Footer -->
+        {% block auth_footer %}{% endblock %}
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- CSRF Cookie Helper -->
+    <script>
+        function getCookie(name) {
+            let v = null;
+            if (document.cookie && document.cookie !== '') {
+                document.cookie.split(';').forEach(c => {
+                    c = c.trim();
+                    if (c.startsWith(name + '=')) v = decodeURIComponent(c.slice(name.length + 1));
+                });
+            }
+            return v;
+        }
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

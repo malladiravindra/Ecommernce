@@ -15,6 +15,11 @@ urlpatterns = [
     path('ajax-admin-login/', views.ajax_admin_login_view, name='api_admin_login'),
     path('logout/', views.custom_logout_view, name='logout'),
     path('register/', views.register_view, name='register'),
+
+    # OTP-Based Password Reset Flow
+    path('forgot-password/', views.forgot_password_view, name='forgot_password'),
+    path('verify-otp/', views.verify_otp_view, name='verify_otp'),
+    path('reset-password/', views.reset_password_view, name='reset_password_custom'),
     path('dashboard/', views.UserDashboardView.as_view(), name='user_dashboard'),
     
     path('password-reset/', auth_views.PasswordResetView.as_view(template_name='registration/password_reset_form.html'), name='password_reset'),
@@ -57,5 +62,6 @@ urlpatterns = [
     path('api/wishlist/<int:pk>/', api_views.WishlistDestroyAPIView.as_view(), name='api_wishlist_remove'),
     path('api/reviews/', api_views.ReviewListCreateAPIView.as_view(), name='api_review_list_create'),
     path('api/orders/', api_views.OrderListAPIView.as_view(), name='api_order_list'),
+    path('api/token/session/', api_views.SessionTokenObtainView.as_view(), name='api_token_session'),
     path('api/soap/', soap_application, name='api_soap'),
 ]

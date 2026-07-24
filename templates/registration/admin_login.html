@@ -1,288 +1,178 @@
-{% extends "index.html" %}
-{% load static %}
-{% block title %}Developer & Admin Portal | Shopping_App{% endblock %}
+{% extends "registration/auth_base.html" %}
+{% block title %}Developer Portal — Shopping_App{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* Dark Theme override for Admin Login page */
-    .admin-login-body {
-        background-color: #0c0f17 !important;
-        color: #e2e8f0;
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
+    /* Dark card override for admin portal */
+    .auth-card {
+        background: rgba(15, 23, 42, 0.92) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        box-shadow: 0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(59,130,246,0.1) !important;
     }
-    
-    .admin-card {
-        background: rgba(20, 26, 40, 0.65) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
-    }
-
-    .admin-title {
-        font-family: 'Outfit', 'Inter', sans-serif;
-        color: #f8fafc;
-        font-weight: 800;
-        letter-spacing: -0.5px;
-    }
-
-    .terminal-badge {
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 11px;
-        background-color: rgba(239, 68, 68, 0.15);
-        color: #ef4444;
-        border: 1px solid rgba(239, 68, 68, 0.3);
-        padding: 4px 10px;
-        border-radius: 20px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .form-control-dark {
-        background-color: rgba(15, 23, 42, 0.6) !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    .auth-card-title { color: #f1f5f9 !important; }
+    .auth-card-subtitle { color: #94a3b8 !important; }
+    .auth-label { color: #cbd5e1 !important; }
+    .auth-input {
+        background: rgba(15,23,42,0.7) !important;
+        border-color: rgba(255,255,255,0.12) !important;
         color: #f1f5f9 !important;
-        font-size: 14px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
     }
-
-    .form-control-dark:focus {
-        background-color: rgba(15, 23, 42, 0.8) !important;
+    .auth-input:focus {
+        background: rgba(15,23,42,0.9) !important;
         border-color: #3b82f6 !important;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.2) !important;
         color: #fff !important;
     }
-
-    .form-control-dark::placeholder {
-        color: #64748b !important;
+    .auth-input::placeholder { color: #475569 !important; }
+    .auth-input-toggle { color: #64748b !important; }
+    .auth-input-toggle:hover { color: #3b82f6 !important; }
+    .auth-btn-primary {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+        box-shadow: 0 4px 16px rgba(37,99,235,0.4) !important;
     }
-
-    .btn-admin-glow {
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        border: none;
-        color: white;
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        box-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
+    .auth-btn-primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+        box-shadow: 0 6px 22px rgba(59,130,246,0.55) !important;
     }
-
-    .btn-admin-glow:hover {
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
-        transform: translateY(-1px);
-        color: white;
+    .auth-link { color: #60a5fa !important; }
+    .auth-link:hover { color: #93c5fd !important; }
+    .terminal-badge {
+        font-family: 'Courier New', monospace;
+        font-size: 10.5px;
+        background: rgba(239,68,68,0.15);
+        color: #ef4444;
+        border: 1px solid rgba(239,68,68,0.3);
+        padding: 4px 12px;
+        border-radius: 20px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        animation: pulse 2s infinite;
     }
-
-    .btn-admin-glow:disabled {
-        background: #334155;
-        box-shadow: none;
-        color: #94a3b8;
+    @keyframes pulse {
+        0%,100% { opacity:1; }
+        50% { opacity:0.7; }
     }
-
-    .portal-link {
-        color: #94a3b8;
-        font-size: 13px;
-        transition: color 0.2s ease;
-    }
-
-    .portal-link:hover {
-        color: #3b82f6;
-    }
-
-    /* Pulse animation for shield icon */
-    .pulse-warning {
-        animation: warning-pulse 2s infinite;
-    }
-
-    @keyframes warning-pulse {
-        0% {
-            transform: scale(1);
-            opacity: 1;
-        }
-        50% {
-            transform: scale(1.08);
-            opacity: 0.8;
-        }
-        100% {
-            transform: scale(1);
-            opacity: 1;
-        }
-    }
+    .auth-divider::before, .auth-divider::after { background: rgba(255,255,255,0.08) !important; }
+    .auth-divider { color: #475569 !important; }
+    .auth-footer-text { color: #475569 !important; }
+    .auth-footer-note { color: #334155 !important; }
 </style>
 {% endblock %}
 
-{% block content %}
-<div class="admin-login-body py-5">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-4">
-                
-                <div class="text-center mb-4">
-                    <a href="{% url 'home' %}" class="text-decoration-none">
-                        <span class="fs-2 fw-bold text-gradient display-font" style="background: linear-gradient(135deg, #60a5fa, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Shopping_App</span>
-                    </a>
-                </div>
+{% block auth_content %}
+<!-- Badge -->
+<div class="text-center mb-4">
+    <span class="terminal-badge">
+        <i class="fa-solid fa-shield-halved me-1"></i> Secure DevOps Portal
+    </span>
+</div>
 
-                <!-- Admin Card -->
-                <div class="card admin-card p-4">
-                    
-                    <div class="text-center mb-4">
-                        <div class="mb-2">
-                            <span class="terminal-badge pulse-warning">
-                                <i class="fa-solid fa-shield-halved"></i> SECURE DEVS PORTAL
-                            </span>
-                        </div>
-                        <h3 class="admin-title mb-1">Developer Login</h3>
-                        <p class="text-muted small mb-0" style="color: #94a3b8 !important;">Authorized system operators only.</p>
-                    </div>
+<h1 class="auth-card-title">Developer Login</h1>
+<p class="auth-card-subtitle">Authorized system operators only. All access is logged.</p>
 
-                    <!-- AJAX Inline Message Tray -->
-                    <div id="admin-alert-container" style="display: none;"></div>
+<!-- Alert Container -->
+<div id="auth-alert" style="display:none;"></div>
 
-                    <form id="ajax-admin-form" method="POST" novalidate>
-                        {% csrf_token %}
+<form id="admin-form" novalidate>
+    {% csrf_token %}
 
-                        <!-- Email Input -->
-                        <div class="mb-3">
-                            <label for="admin-email" class="form-label small fw-bold mb-1" style="color: #cbd5e1;">Developer Email</label>
-                            <input type="email" id="admin-email" class="form-control form-control-dark py-2 px-3" placeholder="operator@domain.com" required autofocus>
-                        </div>
+    <div class="auth-form-group">
+        <label for="admin-email" class="auth-label">Developer Email</label>
+        <input type="email" id="admin-email" class="auth-input" placeholder="operator@domain.com" autocomplete="email" required autofocus>
+    </div>
 
-                        <!-- Password Input -->
-                        <div class="mb-4">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label for="admin-password" class="form-label small fw-bold mb-0" style="color: #cbd5e1;">Access Credentials</label>
-                            </div>
-                            
-                            <div class="input-group overflow-hidden" style="border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px;">
-                                <input type="password" id="admin-password" class="form-control form-control-dark py-2 px-3 border-0" placeholder="••••••••" required>
-                                <button type="button" class="btn btn-dark border-0 px-3" id="toggle-admin-password" style="background: rgba(15, 23, 42, 0.8);">
-                                    <i class="fa-regular fa-eye text-muted" id="admin-eye-icon"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Submit Trigger -->
-                        <button type="submit" class="btn btn-admin-glow w-100 py-2.5 fw-semibold mt-2" id="admin-submit-btn">
-                            Initialize Session
-                        </button>
-                    </form>
-
-                    <div class="mt-4 pt-3 border-top border-secondary border-opacity-25 text-center">
-                        <a href="{% url 'login' %}" class="portal-link text-decoration-none">
-                            <i class="fa-solid fa-arrow-left-long me-1"></i> Switch to Shopper Portal
-                        </a>
-                    </div>
-                </div>
-
-                <div class="text-center mt-3">
-                    <p class="text-muted" style="font-size: 11.5px; color: #475569 !important;">
-                        IP Address: logging active. Unauthorized access attempts violate security policies and are subject to immediate termination.
-                    </p>
-                </div>
-
-            </div>
+    <div class="auth-form-group">
+        <label for="admin-password" class="auth-label">Access Credentials</label>
+        <div class="auth-input-group">
+            <input type="password" id="admin-password" class="auth-input" placeholder="••••••••" autocomplete="current-password" required>
+            <button type="button" class="auth-input-toggle" id="toggle-pw" tabindex="-1">
+                <i class="fa-regular fa-eye" id="pw-eye"></i>
+            </button>
         </div>
     </div>
-</div>
+
+    <button type="submit" class="auth-btn auth-btn-primary mt-2" id="submit-btn">
+        <i class="fa-solid fa-terminal"></i> Initialize Session
+    </button>
+</form>
+
+<div class="auth-divider mt-4">Back to shop</div>
+
+<a href="{% url 'login' %}" class="auth-btn auth-btn-outline" style="border-color:rgba(255,255,255,0.1);color:#94a3b8;background:rgba(255,255,255,0.04);">
+    <i class="fa-solid fa-arrow-left" style="font-size:12px;"></i> Switch to Shopper Portal
+</a>
+
+<p style="font-size:11px;color:#334155;text-align:center;margin-top:16px;line-height:1.6;">
+    Unauthorized access attempts are logged and subject to immediate account termination.
+</p>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Show/Hide Password Toggle logic
-    const toggleAdminBtn = document.getElementById('toggle-admin-password');
-    const adminPassInput = document.getElementById('admin-password');
-    const adminEyeIcon = document.getElementById('admin-eye-icon');
+    const alertBox  = document.getElementById('auth-alert');
+    const submitBtn = document.getElementById('submit-btn');
+    const pwInput   = document.getElementById('admin-password');
 
-    toggleAdminBtn.addEventListener('click', () => {
-        if (adminPassInput.type === 'password') {
-            adminPassInput.type = 'text';
-            adminEyeIcon.classList.replace('fa-eye', 'fa-eye-slash');
-        } else {
-            adminPassInput.type = 'password';
-            adminEyeIcon.classList.replace('fa-eye-slash', 'fa-eye');
-        }
+    document.getElementById('toggle-pw').addEventListener('click', () => {
+        const show = pwInput.type === 'password';
+        pwInput.type = show ? 'text' : 'password';
+        document.getElementById('pw-eye').className = show ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
     });
 
-    // AJAX Admin Login submission logic
-    const adminForm = document.getElementById('ajax-admin-form');
-    const adminAlertContainer = document.getElementById('admin-alert-container');
-    const adminSubmitBtn = document.getElementById('admin-submit-btn');
+    function showAlert(msg, type) {
+        const colorMap = {
+            danger:  { bg:'rgba(239,68,68,0.15)',  color:'#ef4444', border:'rgba(239,68,68,0.3)',  icon:'triangle-exclamation' },
+            success: { bg:'rgba(16,185,129,0.15)', color:'#10b981', border:'rgba(16,185,129,0.3)', icon:'circle-check' },
+        };
+        const c = colorMap[type] || colorMap.danger;
+        alertBox.innerHTML = `
+            <div style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:18px;
+                        display:flex;align-items:flex-start;gap:8px;
+                        background:${c.bg};color:${c.color};border:1px solid ${c.border};">
+                <i class="fa-solid fa-${c.icon}" style="flex-shrink:0;margin-top:1px;"></i>
+                <span>${msg}</span>
+            </div>`;
+        alertBox.style.display = 'block';
+    }
 
-    adminForm.addEventListener('submit', async (e) => {
+    document.getElementById('admin-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
-        const email = document.getElementById('admin-email').value;
-        const pass = adminPassInput.value;
+        const email = document.getElementById('admin-email').value.trim();
+        const pass  = pwInput.value;
 
-        if (!email || !pass) {
-            showAdminAlert("Credentials fields cannot be empty.", "danger");
-            return;
-        }
+        if (!email || !pass) { showAlert('Please enter your credentials.', 'danger'); return; }
 
-        // Loading state
-        adminSubmitBtn.disabled = true;
-        adminSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Connecting...';
-        adminAlertContainer.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<div class="auth-spinner"></div><span>Connecting…</span>';
+        alertBox.style.display = 'none';
 
         try {
-            const response = await fetch("{% url 'api_admin_login' %}", {
+            const res = await fetch("{% url 'api_admin_login' %}", {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify({
-                    email: email,
-                    password: pass
-                })
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ email, password: pass })
             });
+            const data = await res.json();
 
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-                showAdminAlert(result.message, "success");
-                // Wait 1 sec for visual effect then redirect to next parameter or admin dashboard
+            if (res.ok && data.success) {
+                if (data.access_token && data.refresh_token) {
+                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('refresh_token', data.refresh_token);
+                }
+                showAlert(data.message || 'Authentication successful. Loading dashboard…', 'success');
                 setTimeout(() => {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const nextParam = result.redirect_url || urlParams.get('next') || "{% url 'admin_dashboard' %}";
-                    window.location.href = nextParam;
+                    window.location.href = data.redirect_url || "{% url 'admin_dashboard' %}";
                 }, 800);
             } else {
-                showAdminAlert(result.error || "Authentication rejected.", "danger");
-                adminSubmitBtn.disabled = false;
-                adminSubmitBtn.innerHTML = 'Initialize Session';
+                showAlert(data.error || 'Authentication rejected. Access denied.', 'danger');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-terminal"></i> Initialize Session';
             }
-        } catch (error) {
-            showAdminAlert("Operator Pipeline offline. Check server availability.", "danger");
-            adminSubmitBtn.disabled = false;
-            adminSubmitBtn.innerHTML = 'Initialize Session';
+        } catch {
+            showAlert('Operator pipeline offline. Check server availability.', 'danger');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-terminal"></i> Initialize Session';
         }
     });
-
-    function showAdminAlert(msg, tag) {
-        adminAlertContainer.innerHTML = `
-            <div class="alert alert-${tag} d-flex align-items-center py-2 px-3 rounded-3 border-0 mb-3 fs-7" role="alert" style="font-size: 12.5px; background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.25);">
-                <i class="fa-solid fa-triangle-exclamation me-2"></i>
-                <div>${msg}</div>
-            </div>
-        `;
-        // Handle success class coloring overrides
-        if (tag === 'success') {
-            adminAlertContainer.querySelector('.alert').style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
-            adminAlertContainer.querySelector('.alert').style.color = '#10b981';
-            adminAlertContainer.querySelector('.alert').style.borderColor = 'rgba(16, 185, 129, 0.25)';
-            adminAlertContainer.querySelector('i').className = 'fa-solid fa-circle-check me-2';
-        }
-        adminAlertContainer.style.display = 'block';
-    }
 </script>
 {% endblock %}
