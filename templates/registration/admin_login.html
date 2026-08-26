@@ -1,5 +1,6 @@
 {% extends "registration/auth_base.html" %}
 {% block title %}Developer Portal — Shopping_App{% endblock %}
+{% block auth_card_class %}is-single{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -60,6 +61,7 @@
 {% endblock %}
 
 {% block auth_content %}
+<div class="auth-side-form">
 <!-- Badge -->
 <div class="text-center mb-4">
     <span class="terminal-badge">
@@ -105,6 +107,7 @@
 <p style="font-size:11px;color:#334155;text-align:center;margin-top:16px;line-height:1.6;">
     Unauthorized access attempts are logged and subject to immediate account termination.
 </p>
+</div>
 {% endblock %}
 
 {% block extra_js %}

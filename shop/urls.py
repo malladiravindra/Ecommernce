@@ -9,7 +9,7 @@ urlpatterns = [
     path('products/', views.ProductListView.as_view(), name='product_list'),
     path('products/<slug:slug>/', views.ProductDetailView.as_view(), name='product_detail'),
 
-    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    path('login/', views.login_view, name='login'),
     path('ajax-login/', views.ajax_login_view, name='api_login'),
     path('admin-login/', views.admin_login_view, name='admin_login'),
     path('ajax-admin-login/', views.ajax_admin_login_view, name='api_admin_login'),

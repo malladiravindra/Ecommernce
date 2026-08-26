@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     
     # Local apps
     'shop.apps.ShopConfig',
+    'accounts',
 ]
 
 MIDDLEWARE = [
@@ -105,6 +106,7 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
+                'django.template.context_processors.csrf',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 # Custom processor for dynamic navbar values
@@ -210,6 +212,7 @@ LOGOUT_REDIRECT_URL = 'home'
 # Allauth configurations
 SITE_ID = 1
 AUTHENTICATION_BACKENDS = [
+    'accounts.backends.EmailOrUsernameModelBackend',
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
@@ -238,13 +241,19 @@ SOCIALACCOUNT_PROVIDERS = {
 
 
 # Email System Configuration
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "malladiravindra1@gmail.com"
-EMAIL_HOST_PASSWORD = "ggokgbvmuyuosjgw"
-DEFAULT_FROM_EMAIL = "Shopping_App <malladiravindra1@gmail.com>"
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "malladiravindra1@gmail.com")
+
+env_password = os.getenv("EMAIL_HOST_PASSWORD", "")
+if not env_password or env_password == "your_gmail_app_password_here":
+    EMAIL_HOST_PASSWORD = "ggokgbvmuyuosjgw"
+else:
+    EMAIL_HOST_PASSWORD = env_password
+
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Shopping_App <malladiravindra1@gmail.com>")
 
 
 # DRF configurations with SimpleJWT support

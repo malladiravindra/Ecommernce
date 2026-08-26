@@ -1,7 +1,9 @@
 {% extends "registration/auth_base.html" %}
 {% block title %}Verify OTP — Shopping_App{% endblock %}
+{% block auth_card_class %}is-single{% endblock %}
 
 {% block auth_content %}
+<div class="auth-side-form">
 <!-- Step Indicator -->
 <div class="auth-steps">
     <div class="auth-step-dot done"><i class="fa-solid fa-check" style="font-size:10px;"></i></div>
@@ -49,6 +51,7 @@
 <p class="auth-footer-text mt-4">
     <a href="{% url 'forgot_password' %}" class="auth-link">← Change email address</a>
 </p>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -108,6 +111,22 @@
 
     otpBoxes[0].focus();
 
+    // Check the flow type (register vs reset)
+    const otpFlow = sessionStorage.getItem('otp_flow') || 'reset';
+    const otpEmail = sessionStorage.getItem('otp_email') || '';
+
+    // Clear dev sessionStorage items when clicking back to change email address
+    const changeEmailLink = document.querySelector('a[href*="forgot_password"]');
+    if (changeEmailLink) {
+        if (otpFlow === 'register') {
+            changeEmailLink.href = "{% url 'login' %}"; // Go back to register/login page
+        }
+        changeEmailLink.addEventListener('click', () => {
+            sessionStorage.removeItem('otp_flow');
+            sessionStorage.removeItem('otp_email');
+        });
+    }
+
     function getOTP() { return otpBoxes.map(b => b.value).join(''); }
 
     // Expiry countdown (5 min)
@@ -148,11 +167,20 @@
     // Resend OTP
     resendBtn.addEventListener('click', async () => {
         resendBtn.disabled = true;
+        
+        let url = "{% url 'forgot_password' %}";
+        let body = JSON.stringify({ resend: true });
+        
+        if (otpFlow === 'register') {
+            url = "/api/resend-otp/";
+            body = JSON.stringify({ email: otpEmail });
+        }
+
         try {
-            const res = await fetch("{% url 'forgot_password' %}", {
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ resend: true })
+                body: body
             });
             const data = await res.json();
             if (data.success) {
@@ -178,18 +206,36 @@
         verifyBtn.innerHTML = '<div class="auth-spinner"></div><span>Verifying…</span>';
         alertBox.style.display = 'none';
 
+        let url = "{% url 'verify_otp' %}";
+        let body = JSON.stringify({ otp });
+
+        if (otpFlow === 'register') {
+            url = "/api/verify-otp/";
+            body = JSON.stringify({ email: otpEmail, otp });
+        }
+
         try {
-            const res = await fetch("{% url 'verify_otp' %}", {
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ otp })
+                body: body
             });
             const data = await res.json();
 
             if (data.success) {
                 clearInterval(expiryInterval);
-                showAlert('OTP verified! Redirecting to password reset…', 'success');
-                setTimeout(() => { window.location.href = "{% url 'reset_password_custom' %}"; }, 900);
+                sessionStorage.removeItem('otp_flow');
+                sessionStorage.removeItem('otp_email');
+                
+                let successMsg = 'OTP verified! Redirecting to password reset…';
+                let redirectUrl = "{% url 'reset_password_custom' %}";
+                if (otpFlow === 'register') {
+                    successMsg = 'Account verified successfully! Redirecting to login…';
+                    redirectUrl = "{% url 'login' %}";
+                }
+                
+                showAlert(successMsg, 'success');
+                setTimeout(() => { window.location.href = redirectUrl; }, 1500);
             } else {
                 showAlert(data.error || 'Invalid OTP. Please try again.', 'danger');
                 otpBoxes.forEach(b => { b.value=''; b.classList.remove('filled'); });

@@ -199,7 +199,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
+                        'X-CSRFToken': getCookie('csrftoken')
                     },
                     body: JSON.stringify({
                         address_id: addressId
@@ -225,7 +225,7 @@
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
-                                        'X-CSRFToken': '{{ csrf_token }}'
+                                        'X-CSRFToken': getCookie('csrftoken')
                                     },
                                     body: JSON.stringify({
                                         razorpay_order_id: data.razorpay_order_id,
@@ -274,7 +274,7 @@
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
-                                    'X-CSRFToken': '{{ csrf_token }}'
+                                    'X-CSRFToken': getCookie('csrftoken')
                                 },
                                 body: JSON.stringify({
                                     razorpay_order_id: paymentResponse.razorpay_order_id,

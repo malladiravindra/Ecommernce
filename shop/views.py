@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
 from django.views.generic import ListView, DetailView, CreateView
 from django.contrib.auth import login, authenticate, login as auth_login, logout as auth_logout
+from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -24,6 +25,29 @@ from .models import (
     Category, Product, Cart, CartItem, Wishlist,
     Order, OrderItem, ShippingAddress, Review, Conversation, Message, HomeBanner
 )
+
+@login_not_required
+def login_view(request):
+    """Render the unified authentication page (login + registration)."""
+    if request.user.is_authenticated:
+        if request.user.is_staff or request.user.is_superuser:
+            return redirect('admin_dashboard')
+        return redirect('home')
+    return render(request, 'registration/login.html', {'default_mode': 'login'})
+
+
+@login_not_required
+def register_page_view(request):
+    """Render the unified authentication page with Registration as default mode."""
+    if request.user.is_authenticated:
+        return redirect('home')
+    from .forms import UserRegisterForm
+    form = UserRegisterForm(request.POST or None)
+    return render(request, 'registration/login.html', {
+        'form': form,
+        'default_mode': 'register',
+    })
+
 
 @csrf_exempt
 def ajax_login_view(request):
@@ -145,6 +169,9 @@ def ajax_admin_login_view(request):
 
 
 def register_view(request):
+    """Render the unified authentication page in Registration mode and process the form."""
+    if request.user.is_authenticated:
+        return redirect('home')
     if request.method == 'POST':
         form = UserRegisterForm(request.POST)
         if form.is_valid():
@@ -152,9 +179,16 @@ def register_view(request):
             auth_login(request, user)
             messages.success(request, "Welcome to Shopping_App! Your account has been successfully created.")
             return redirect('home')
-    else:
-        form = UserRegisterForm()
-    return render(request, 'registration/register.html', {'form': form})
+        # On validation failure, render the unified template in register mode with errors
+        return render(request, 'registration/login.html', {
+            'form': form,
+            'default_mode': 'register',
+        })
+    form = UserRegisterForm()
+    return render(request, 'registration/login.html', {
+        'form': form,
+        'default_mode': 'register',
+    })
 
 
 # ----------------- OTP PASSWORD RESET FLOW ----------------- #
@@ -204,6 +238,15 @@ def forgot_password_view(request):
         otp = str(random.randint(100000, 999999))
         otp_expiry = (datetime.utcnow() + timedelta(minutes=5)).isoformat()
 
+        # Print OTP to terminal console for development visibility
+        if settings.DEBUG:
+            print("\n" + "="*80)
+            if user_obj:
+                print(f"[DEV DEBUG] OTP Generated for {email}: {otp}")
+            else:
+                print(f"[DEV DEBUG] OTP Generated for {email}: {otp} (WARNING: No registered user found for this email!)")
+            print("="*80 + "\n")
+
         # Store OTP and metadata in session
         request.session['otp_code']     = otp
         request.session['otp_email']    = email
@@ -227,12 +270,19 @@ def forgot_password_view(request):
                     ),
                     from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@shopping-app.com'),
                     recipient_list=[email],
-                    fail_silently=True,
+                    fail_silently=False,
                 )
-            except Exception:
-                pass  # Already fail_silently=True, console backend will print it
+            except Exception as e:
+                if settings.DEBUG:
+                    print("\n" + "!"*80)
+                    print(f"[DEV DEBUG] Failed to send email to {email} via SMTP.")
+                    print(f"Error details: {e}")
+                    print("!"*80 + "\n")
 
-        return JsonResponse({'success': True, 'message': 'OTP sent successfully.'})
+        response_data = {'success': True, 'message': 'OTP sent successfully.'}
+        if settings.DEBUG:
+            response_data['otp'] = otp
+        return JsonResponse(response_data)
 
     return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
 

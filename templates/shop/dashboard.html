@@ -499,12 +499,12 @@
                     <div class="section-card-body p-4">
                         <div class="row g-4">
                             <!-- JWT Session Details -->
-                            <div class="col-lg-8">
+                            <div class="col-lg-12">
                                 <h5 class="fw-bold mb-3 d-flex align-items-center gap-2" style="font-size: 15px;">
                                     <i class="fa-solid fa-shield-halved text-primary"></i> JWT Authentication Token
                                     <span id="jwt-status-badge" class="badge rounded-pill bg-secondary-subtle text-secondary" style="font-size: 11px;">Checking...</span>
                                 </h5>
-                                
+
                                 <!-- Access Token -->
                                 <div class="mb-3">
                                     <label class="form-label text-muted small fw-semibold">JWT Access Token</label>
@@ -546,46 +546,6 @@
                                     </button>
                                 </div>
                                 <div id="jwt-action-msg" class="mt-2 small text-success" style="display: none;"></div>
-                            </div>
-
-                            <!-- OAuth 2.0 Connections -->
-                            <div class="col-lg-4">
-                                <h5 class="fw-bold mb-3 d-flex align-items-center gap-2" style="font-size: 15px;">
-                                    <i class="fa-solid fa-user-lock text-success"></i> Connected OAuth 2.0 Providers
-                                </h5>
-                                
-                                <div class="p-3 border rounded-3 bg-light">
-                                    {% load socialaccount %}
-                                    {% get_social_accounts user as accounts %}
-                                    
-                                    <div class="d-flex align-items-center justify-content-between mb-3">
-                                        <div class="d-flex align-items-center gap-2">
-                                            <div class="bg-white border rounded-circle p-2 d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
-                                                <i class="fa-brands fa-google text-danger" style="font-size: 18px;"></i>
-                                            </div>
-                                            <div>
-                                                <div class="fw-semibold small">Google Sign-In</div>
-                                                {% if accounts.google %}
-                                                    <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 9.5px;">Linked</span>
-                                                {% else %}
-                                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 9.5px;">Not Linked</span>
-                                                {% endif %}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            {% if accounts.google %}
-                                                <span class="text-muted small">{{ accounts.google.0.extra_data.email|default:user.email }}</span>
-                                            {% else %}
-                                                <a href="{% provider_login_url 'google' process='connect' %}" class="btn btn-xs btn-outline-primary fw-semibold px-2 py-1" style="font-size: 11px; text-decoration: none;">
-                                                    Link
-                                                </a>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    <p class="text-muted mb-0" style="font-size: 11px;">
-                                        Link your social accounts to log in instantly using Google OAuth 2.0 without email/password credentials.
-                                    </p>
-                                </div>
                             </div>
                         </div>
                     </div>

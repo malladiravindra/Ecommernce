@@ -1,91 +1,239 @@
 {% extends "registration/auth_base.html" %}
-{% load socialaccount %}
 {% block title %}Sign In — Shopping_App{% endblock %}
 
 {% block auth_content %}
-<h1 class="auth-card-title">Welcome back</h1>
-<p class="auth-card-subtitle">Sign in to your Shopping_App account to continue shopping.</p>
+<!-- LEFT: Forms -->
+<div class="auth-side-form">
 
-<!-- Alert Container -->
-<div id="auth-alert" style="display:none;"></div>
+    <!-- Alert Container -->
+    <div id="auth-alert" style="display:none;"></div>
 
-<form id="login-form" novalidate>
-    {% csrf_token %}
+    <!-- ============================== -->
+    <!-- LOGIN FORM (default view)     -->
+    <!-- ============================== -->
+    <section id="login-section" class="auth-mode-section {% if default_mode != 'login' %}is-hidden{% else %}is-active{% endif %}" aria-labelledby="login-heading">
+        <h1 id="login-heading" class="auth-card-title">Sign In</h1>
+        <p class="auth-card-subtitle">Welcome back — sign in to continue shopping.</p>
 
-    <!-- Email -->
-    <div class="auth-form-group">
-        <label for="email" class="auth-label">Email Address</label>
-        <input type="email" id="email" class="auth-input" placeholder="name@example.com" autocomplete="email" required
-            autofocus>
-    </div>
+        <form id="login-form" novalidate>
+            {% csrf_token %}
 
-    <!-- Password -->
-    <div class="auth-form-group">
-        <div class="d-flex justify-content-between align-items-center mb-1" style="gap:8px;">
-            <label for="password" class="auth-label mb-0">Password</label>
-            <a href="{% url 'forgot_password' %}" class="auth-link" style="font-size:12.5px;">Forgot password?</a>
-        </div>
-        <div class="auth-input-group">
-            <input type="password" id="password" class="auth-input" placeholder="Enter your password"
-                autocomplete="current-password" required>
-            <button type="button" class="auth-input-toggle" id="toggle-pw" tabindex="-1"
-                aria-label="Toggle password visibility">
-                <i class="fa-regular fa-eye" id="pw-eye"></i>
+            <!-- Email -->
+            <div class="auth-form-group">
+                <label for="login-email" class="auth-label">Email</label>
+                <input type="email" id="login-email" class="auth-input" placeholder="name@example.com" autocomplete="email" required autofocus>
+            </div>
+
+            <!-- Password -->
+            <div class="auth-form-group">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <label for="login-password" class="auth-label" style="margin-bottom:0;">Password</label>
+                </div>
+                <div class="auth-input-group">
+                    <input type="password" id="login-password" class="auth-input" placeholder="Enter your password" autocomplete="current-password" required>
+                    <button type="button" class="auth-input-toggle" id="toggle-login-pw" tabindex="-1" aria-label="Toggle password visibility">
+                        <i class="fa-regular fa-eye" id="login-pw-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Forgot Password -->
+            <div style="text-align:right;margin-bottom:16px;">
+                <a href="{% url 'forgot_password' %}" class="auth-link">Forgot Password?</a>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="auth-btn auth-btn-primary" id="login-submit-btn">
+                Login
             </button>
+        </form>
+    </section>
+
+    <!-- ============================== -->
+    <!-- REGISTRATION FORM              -->
+    <!-- ============================== -->
+    <section id="register-section" class="auth-mode-section {% if default_mode == 'login' %}is-hidden{% else %}is-active{% endif %}" aria-labelledby="register-heading">
+        <h1 id="register-heading" class="auth-card-title">Registration</h1>
+        <p class="auth-card-subtitle">Create your account to discover premium curated collections.</p>
+
+        {% if form and form.non_field_errors %}
+        <div class="auth-alert auth-alert-danger">
+            <i class="fa-solid fa-circle-exclamation" style="flex-shrink:0;"></i>
+            <span>{% for e in form.non_field_errors %}{{ e }}{% endfor %}</span>
         </div>
-    </div>
+        {% endif %}
 
-    <!-- Remember Me -->
-    <div class="auth-form-group d-flex align-items-center justify-content-between">
-        <label class="auth-checkbox-group">
-            <input type="checkbox" id="remember-me" class="auth-checkbox">
-            <span class="auth-checkbox-label">Remember me for 30 days</span>
-        </label>
-    </div>
+        <form method="POST" id="register-form" novalidate>
+            {% csrf_token %}
 
-    <!-- Submit -->
-    <button type="submit" class="auth-btn auth-btn-primary mt-2" id="submit-btn">
-        Sign In
+            <!-- Full Name -->
+            <div class="auth-form-group">
+                <label for="reg-fullname" class="auth-label">Full Name</label>
+                <input type="text" id="reg-fullname" class="auth-input" placeholder="John Doe" autocomplete="name" required>
+            </div>
+
+            <!-- Email -->
+            <div class="auth-form-group">
+                <label for="reg-email" class="auth-label">Email</label>
+                <input type="email" name="{% if form %}email{% else %}email{% endif %}" id="reg-email" class="auth-input {% if form and form.email.errors %}is-invalid{% endif %}" placeholder="name@example.com" value="{{ form.email.value|default:'' }}" autocomplete="email" required>
+                {% if form and form.email.errors %}
+                <div class="field-error">{{ form.email.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Username (hidden field used by Django form) -->
+            <input type="hidden" name="username" id="reg-username" value="">
+
+            <!-- Password -->
+            <div class="auth-form-group">
+                <label for="reg-password" class="auth-label">Password</label>
+                <div class="auth-input-group">
+                    <input type="password" name="password1" id="reg-password" class="auth-input {% if form and form.password1.errors %}is-invalid{% endif %}" placeholder="Create a strong password" autocomplete="new-password" required>
+                    <button type="button" class="auth-input-toggle" id="toggle-reg-pw" tabindex="-1" aria-label="Toggle password visibility">
+                        <i class="fa-regular fa-eye" id="reg-pw-eye"></i>
+                    </button>
+                </div>
+                <div class="pw-strength-bar"><div class="pw-strength-fill" id="pw-fill"></div></div>
+                <div class="pw-strength-text" id="pw-strength-text" style="color:#94a3b8;"></div>
+                {% if form and form.password1.errors %}
+                <div class="field-error">{{ form.password1.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="auth-form-group">
+                <label for="reg-password2" class="auth-label">Confirm Password</label>
+                <div class="auth-input-group">
+                    <input type="password" name="password2" id="reg-password2" class="auth-input {% if form and form.password2.errors %}is-invalid{% endif %}" placeholder="Repeat your password" autocomplete="new-password" required>
+                    <button type="button" class="auth-input-toggle" id="toggle-reg-pw2" tabindex="-1" aria-label="Toggle password visibility">
+                        <i class="fa-regular fa-eye" id="reg-pw-eye2"></i>
+                    </button>
+                </div>
+                <div id="pw-match-msg" style="font-size:12px;margin-top:4px;font-weight:500;"></div>
+                {% if form and form.password2.errors %}
+                <div class="field-error">{{ form.password2.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="auth-btn auth-btn-primary" id="register-submit-btn">
+                Register
+            </button>
+        </form>
+
+        <!-- Social Placeholder Icons -->
+        <div class="auth-divider">Register with social platforms</div>
+        <div class="auth-social-row" aria-hidden="true">
+            <span class="auth-social-icon" data-brand="google"   title="Google"><i class="fa-brands fa-google"></i></span>
+            <span class="auth-social-icon" data-brand="facebook" title="Facebook"><i class="fa-brands fa-facebook-f"></i></span>
+            <span class="auth-social-icon" data-brand="github"   title="GitHub"><i class="fa-brands fa-github"></i></span>
+            <span class="auth-social-icon" data-brand="linkedin" title="LinkedIn"><i class="fa-brands fa-linkedin-in"></i></span>
+        </div>
+    </section>
+</div>
+
+<!-- RIGHT: Blue Welcome Panel -->
+<div class="auth-side-panel">
+    <div class="auth-panel-eyebrow" id="panel-eyebrow">New here?</div>
+    <h2 class="auth-panel-title" id="panel-title">Hello, Friend!</h2>
+    <p class="auth-panel-text" id="panel-text">Enter your personal details and start your journey with us.</p>
+    <button type="button" class="auth-panel-btn" id="toggle-mode-btn">
+        <span id="toggle-mode-label">
+            {% if default_mode == 'login' %}
+                Register
+            {% else %}
+                Login
+            {% endif %}
+        </span>
+        <i class="fa-solid fa-arrow-right" style="font-size:11px;"></i>
     </button>
-</form>
-
-<div class="auth-divider">or continue with</div>
-
-<a href="{% provider_login_url 'google' %}" class="auth-btn auth-btn-outline google-btn mb-2"
-    style="border-color: #d1d5db; background: #fff; color: #374151; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.2s, box-shadow 0.2s;">
-    <i class="fa-brands fa-google text-danger"></i>
-    <span>Sign in with Google</span>
-</a>
+</div>
 
 <style>
-    .google-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        border-color: #b91c1c !important;
-    }
+    /* Hide non-active section accessibility tree */
+    .auth-mode-section.is-hidden { display: none; }
 </style>
-
-<div class="auth-divider">New to Shopping_App?</div>
-
-<a href="{% url 'register' %}" class="auth-btn auth-btn-outline">
-    Create a free account
-</a>
-
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Password show/hide
-    const pwInput = document.getElementById('password');
-    const pwEye = document.getElementById('pw-eye');
-    document.getElementById('toggle-pw').addEventListener('click', () => {
-        const show = pwInput.type === 'password';
-        pwInput.type = show ? 'text' : 'password';
-        pwEye.className = show ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+(function () {
+    'use strict';
+
+    // ── Mode toggle (left-side) ──
+    const loginSection    = document.getElementById('login-section');
+    const registerSection = document.getElementById('register-section');
+    const toggleBtn       = document.getElementById('toggle-mode-btn');
+    const toggleLabel     = document.getElementById('toggle-mode-label');
+    const panelTitle      = document.getElementById('panel-title');
+    const panelText       = document.getElementById('panel-text');
+    const panelEyebrow    = document.getElementById('panel-eyebrow');
+
+    const COPY = {
+        toRegister: {
+            eyebrow: 'New here?',
+            title:   'Hello, Friend!',
+            text:    'Enter your personal details and start your journey with us.',
+            btn:     'Register'
+        },
+        toLogin: {
+            eyebrow: 'Welcome Back!',
+            title:   'Welcome Back!',
+            text:    'Already have an account? Sign in to continue where you left off.',
+            btn:     'Login'
+        }
+    };
+
+    let mode = '{{ default_mode|default:"login" }}';
+
+    function showRegister() {
+        loginSection.classList.replace('is-active','is-hidden');
+        registerSection.classList.replace('is-hidden','is-active');
+        toggleLabel.textContent = COPY.toLogin.btn;
+        panelTitle.textContent  = COPY.toLogin.title;
+        panelText.textContent   = COPY.toLogin.text;
+        panelEyebrow.textContent = COPY.toLogin.eyebrow;
+        history.replaceState(null, '', window.location.pathname); // stay on /login/
+        mode = 'register';
+        const firstInput = document.getElementById('reg-fullname');
+        if (firstInput) firstInput.focus();
+    }
+
+    function showLogin() {
+        registerSection.classList.replace('is-active','is-hidden');
+        loginSection.classList.replace('is-hidden','is-active');
+        toggleLabel.textContent = COPY.toRegister.btn;
+        panelTitle.textContent  = COPY.toRegister.title;
+        panelText.textContent   = COPY.toRegister.text;
+        panelEyebrow.textContent = COPY.toRegister.eyebrow;
+        mode = 'login';
+        const firstInput = document.getElementById('login-email');
+        if (firstInput) firstInput.focus();
+    }
+
+    toggleBtn.addEventListener('click', () => {
+        if (mode === 'login') showRegister();
+        else showLogin();
     });
 
-    // Alert helper
+    // ── Password show/hide ──
+    function bindToggle(inputId, eyeId, btnId) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            const inp = document.getElementById(inputId);
+            const eye = document.getElementById(eyeId);
+            if (!inp || !eye) return;
+            const show = inp.type === 'password';
+            inp.type = show ? 'text' : 'password';
+            eye.className = show ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+        });
+    }
+    bindToggle('login-password', 'login-pw-eye',   'toggle-login-pw');
+    bindToggle('reg-password',   'reg-pw-eye',     'toggle-reg-pw');
+    bindToggle('reg-password2',  'reg-pw-eye2',    'toggle-reg-pw2');
+
+    // ── Alert helper ──
     const alertBox = document.getElementById('auth-alert');
     function showAlert(msg, type) {
         const icons = { danger: 'circle-exclamation', success: 'circle-check', info: 'circle-info' };
@@ -95,33 +243,32 @@
                 <span>${msg}</span>
             </div>`;
         alertBox.style.display = 'block';
+        alertBox.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
 
-    // AJAX Login
-    const form = document.getElementById('login-form');
-    const submitBtn = document.getElementById('submit-btn');
+    // ── Login Submit (AJAX) ──
+    const loginForm    = document.getElementById('login-form');
+    const loginSubmit  = document.getElementById('login-submit-btn');
 
-    form.addEventListener('submit', async (e) => {
+    loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const email    = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
 
-        const email = document.getElementById('email').value.trim();
-        const password = pwInput.value;
-        const remember = document.getElementById('remember-me').checked;
+        if (!email) { showAlert('Please enter your email address.', 'danger'); return; }
+        if (!password) { showAlert('Please enter your password.', 'danger'); return; }
+        const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRe.test(email)) { showAlert('Please enter a valid email address.', 'danger'); return; }
 
-        if (!email || !password) {
-            showAlert('Please enter your email and password.', 'danger');
-            return;
-        }
-
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<div class="auth-spinner"></div><span>Signing in...</span>';
+        loginSubmit.disabled = true;
+        loginSubmit.innerHTML = '<div class="auth-spinner"></div><span>Signing in...</span>';
         alertBox.style.display = 'none';
 
         try {
             const res = await fetch("{% url 'api_login' %}", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ email, password, remember })
+                body: JSON.stringify({ email, password })
             });
             const data = await res.json();
 
@@ -137,14 +284,131 @@
                 }, 700);
             } else {
                 showAlert(data.error || 'Invalid credentials. Please try again.', 'danger');
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Sign In';
+                loginSubmit.disabled = false;
+                loginSubmit.innerHTML = 'Login';
             }
-        } catch {
+        } catch (err) {
             showAlert('Network error. Please check your connection.', 'danger');
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Sign In';
+            loginSubmit.disabled = false;
+            loginSubmit.innerHTML = 'Login';
         }
     });
+
+    // ── Register Submit ──
+    // Auto-derive a Django username from the full name (form field expects one)
+    const regForm        = document.getElementById('register-form');
+    const regFullName    = document.getElementById('reg-fullname');
+    const regUsername    = document.getElementById('reg-username');
+    const regEmail       = document.getElementById('reg-email');
+    const regPassword    = document.getElementById('reg-password');
+    const regPassword2   = document.getElementById('reg-password2');
+    const regSubmit      = document.getElementById('register-submit-btn');
+    const pwFill         = document.getElementById('pw-fill');
+    const pwStrText      = document.getElementById('pw-strength-text');
+    const pwMatchMsg     = document.getElementById('pw-match-msg');
+
+    function deriveUsername(fullName, email) {
+        const base = (fullName || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12);
+        if (base) return base + Math.floor(100 + Math.random() * 900);
+        return (email || '').split('@')[0].toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,12) + Math.floor(100 + Math.random() * 900);
+    }
+
+    function calcStrength(pw) {
+        let s = 0;
+        if (pw.length >= 8) s++;
+        if (/[A-Z]/.test(pw)) s++;
+        if (/[a-z]/.test(pw)) s++;
+        if (/[0-9]/.test(pw)) s++;
+        if (/[^A-Za-z0-9]/.test(pw)) s++;
+        return s;
+    }
+
+    regPassword.addEventListener('input', () => {
+        const score = calcStrength(regPassword.value);
+        const levels = [
+            { pct: '0%',   color: '#e2e8f0', label: '' },
+            { pct: '20%',  color: '#ef4444', label: 'Very Weak' },
+            { pct: '40%',  color: '#f97316', label: 'Weak' },
+            { pct: '60%',  color: '#eab308', label: 'Fair' },
+            { pct: '80%',  color: '#22c55e', label: 'Strong' },
+            { pct: '100%', color: '#16a34a', label: 'Very Strong' },
+        ];
+        const lvl = regPassword.value ? levels[score] : levels[0];
+        pwFill.style.width = lvl.pct;
+        pwFill.style.background = lvl.color;
+        pwStrText.textContent = lvl.label;
+        pwStrText.style.color = lvl.color;
+    });
+
+    regPassword2.addEventListener('input', () => {
+        if (!regPassword2.value) { pwMatchMsg.textContent = ''; return; }
+        if (regPassword.value === regPassword2.value) {
+            pwMatchMsg.textContent = '✓ Passwords match';
+            pwMatchMsg.style.color = '#16a34a';
+        } else {
+            pwMatchMsg.textContent = '✗ Passwords do not match';
+            pwMatchMsg.style.color = '#dc2626';
+        }
+    });
+
+    regForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fullName = regFullName.value.trim();
+        const email    = regEmail.value.trim();
+        const pw       = regPassword.value;
+        const pw2      = regPassword2.value;
+
+        if (!fullName) { showAlert('Please enter your full name.', 'danger'); return; }
+        if (!email)    { showAlert('Please enter your email address.', 'danger'); return; }
+        const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRe.test(email)) { showAlert('Please enter a valid email address.', 'danger'); return; }
+        if (pw.length < 8) { showAlert('Password must be at least 8 characters.', 'danger'); return; }
+        if (pw !== pw2) { showAlert('Passwords do not match.', 'danger'); return; }
+
+        if (!regUsername.value) {
+            regUsername.value = deriveUsername(fullName, email);
+        }
+        const username = regUsername.value;
+
+        regSubmit.disabled = true;
+        regSubmit.innerHTML = '<div class="auth-spinner"></div><span>Creating account...</span>';
+        alertBox.style.display = 'none';
+
+        try {
+            const res = await fetch("/api/register/", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                body: JSON.stringify({ username, email, password: pw })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                sessionStorage.setItem('otp_flow', 'register');
+                sessionStorage.setItem('otp_email', email);
+                sessionStorage.removeItem('dev_otp'); // Ensure development mock is cleared
+                showAlert('Account created! A verification OTP has been sent to your email.', 'success');
+                setTimeout(() => { window.location.href = "{% url 'verify_otp' %}"; }, 1200);
+            } else {
+                // Parse potential error formats from DRF
+                let errorMsg = data.error || 'Failed to register account. Please try again.';
+                if (data.email) errorMsg = data.email[0];
+                if (data.username) errorMsg = data.username[0];
+                if (data.password) errorMsg = data.password[0];
+                showAlert(errorMsg, 'danger');
+                regSubmit.disabled = false;
+                regSubmit.innerHTML = 'Register';
+            }
+        } catch (err) {
+            showAlert('Network error occurred. Please verify your connection.', 'danger');
+            regSubmit.disabled = false;
+            regSubmit.innerHTML = 'Register';
+        }
+    });
+
+    // Auto-flip to register mode if Django form had errors after submit
+    {% if form and form.errors %}
+        showRegister();
+    {% endif %}
+})();
 </script>
 {% endblock %}
