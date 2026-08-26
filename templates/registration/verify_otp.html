@@ -168,8 +168,8 @@
     resendBtn.addEventListener('click', async () => {
         resendBtn.disabled = true;
         
-        let url = "{% url 'forgot_password' %}";
-        let body = JSON.stringify({ resend: true });
+        let url = "/api/accounts/resend-reset-otp/";
+        let body = JSON.stringify({ email: otpEmail });
         
         if (otpFlow === 'register') {
             url = "/api/resend-otp/";
@@ -206,8 +206,8 @@
         verifyBtn.innerHTML = '<div class="auth-spinner"></div><span>Verifying…</span>';
         alertBox.style.display = 'none';
 
-        let url = "{% url 'verify_otp' %}";
-        let body = JSON.stringify({ otp });
+        let url = "/api/accounts/verify-reset-otp/";
+        let body = JSON.stringify({ email: otpEmail, otp });
 
         if (otpFlow === 'register') {
             url = "/api/verify-otp/";
@@ -224,14 +224,16 @@
 
             if (data.success) {
                 clearInterval(expiryInterval);
-                sessionStorage.removeItem('otp_flow');
-                sessionStorage.removeItem('otp_email');
                 
                 let successMsg = 'OTP verified! Redirecting to password reset…';
                 let redirectUrl = "{% url 'reset_password_custom' %}";
                 if (otpFlow === 'register') {
+                    sessionStorage.removeItem('otp_flow');
+                    sessionStorage.removeItem('otp_email');
                     successMsg = 'Account verified successfully! Redirecting to login…';
                     redirectUrl = "{% url 'login' %}";
+                } else {
+                    sessionStorage.setItem('reset_token', data.token);
                 }
                 
                 showAlert(successMsg, 'success');

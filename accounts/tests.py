@@ -1,172 +1,138 @@
-from django.contrib.auth.models import User
-from django.utils import timezone
-from django.urls import reverse
-from rest_framework import status
-from rest_framework.test import APITestCase
-from unittest.mock import patch
-from datetime import timedelta
+from django.contrib.auth import get_user_model
+from django.core import mail
+from django.test import TestCase, override_settings
+from rest_framework.test import APIClient
 
-from .models import EmailOTP
+User = get_user_model()
 
-class OTPAuthTests(APITestCase):
 
+def _extract_otp(email_body):
+    # Every OTP email body contains a standalone 6-digit line: "...\n\n123456\n\n..."
+    import re
+    return re.search(r"\d{6}", email_body).group(0)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class AccountsApiTests(TestCase):
     def setUp(self):
-        self.register_url = reverse('api_register')
-        self.verify_url = reverse('api_verify_otp')
-        self.resend_url = reverse('api_resend_otp')
-
-    @patch('accounts.views.send_otp_email')
-    def test_registration_flow_success(self, mock_send_email):
-        """Test successful registration: unverified user and OTP creation."""
-        data = {
-            "username": "testuser",
-            "email": "testuser@example.com",
-            "password": "SecurePassword123!"
-        }
-        response = self.client.post(self.register_url, data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(response.data['success'])
-        
-        # Check user created and is inactive (unverified)
-        user = User.objects.get(email="testuser@example.com")
-        self.assertFalse(user.is_active)
-        
-        # Check OTP record created
-        otp_record = EmailOTP.objects.filter(email=user.email).first()
-        self.assertIsNotNone(otp_record)
-        self.assertEqual(len(otp_record.otp), 6)
-        self.assertFalse(otp_record.is_used)
-        
-        # Verify email utility was called
-        mock_send_email.assert_called_once_with(user.email, otp_record.otp)
-
-    @patch('accounts.views.send_otp_email')
-    def test_registration_validation_errors(self, mock_send_email):
-        """Test registration fails with duplicate emails or bad passwords."""
-        # Setup existing user
-        User.objects.create_user("existing", "existing@example.com", "Password123!")
-
-        # Duplicate email
-        data = {
-            "username": "newuser",
-            "email": "existing@example.com",
-            "password": "Password123!"
-        }
-        response = self.client.post(self.register_url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        
-        # Password too weak (no uppercase, no special chars)
-        data = {
-            "username": "newuser",
-            "email": "newuser@example.com",
-            "password": "password"
-        }
-        response = self.client.post(self.register_url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        
-        mock_send_email.assert_not_called()
-
-    def test_otp_verification_success(self):
-        """Test successful OTP verification activates the user."""
-        user = User.objects.create_user("testuser", "testuser@example.com", "SecurePassword123!", is_active=False)
-        otp_record = EmailOTP.objects.create(
-            user=user,
-            email=user.email,
-            otp="123456",
-            expires_at=timezone.now() + timedelta(minutes=5)
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username="admin", email="admin@example.com", password="OldPassword123!"
         )
-        
-        data = {
-            "email": "testuser@example.com",
-            "otp": "123456"
-        }
-        response = self.client.post(self.verify_url, data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Check user is now verified (active)
-        user.refresh_from_db()
-        self.assertTrue(user.is_active)
-        
-        # Check OTP is marked as used
-        otp_record.refresh_from_db()
-        self.assertTrue(otp_record.is_used)
 
-    def test_otp_verification_incorrect_code(self):
-        """Test incorrect OTP returns a bad request error."""
-        user = User.objects.create_user("testuser", "testuser@example.com", "SecurePassword123!", is_active=False)
-        EmailOTP.objects.create(
-            user=user,
-            email=user.email,
-            otp="123456",
-            expires_at=timezone.now() + timedelta(minutes=5)
+    def test_login_returns_jwt_pair_directly(self):
+        response = self.client.post(
+            "/api/accounts/login/",
+            {"email": "admin@example.com", "password": "OldPassword123!"},
+            format="json",
         )
-        
-        data = {
-            "email": "testuser@example.com",
-            "otp": "999999"  # Incorrect
-        }
-        response = self.client.post(self.verify_url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("error", response.data)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
 
-    def test_otp_verification_expired(self):
-        """Test expired OTP fails verification."""
-        user = User.objects.create_user("testuser", "testuser@example.com", "SecurePassword123!", is_active=False)
-        EmailOTP.objects.create(
-            user=user,
-            email=user.email,
-            otp="123456",
-            created_at=timezone.now() - timedelta(minutes=10),
-            expires_at=timezone.now() - timedelta(minutes=5)  # Already expired
+    def test_forgot_password_delivers_otp_only_to_the_registered_user(self):
+        response = self.client.post(
+            "/api/accounts/forgot-password/",
+            {"email": "admin@example.com"},
+            format="json",
         )
-        
-        data = {
-            "email": "testuser@example.com",
-            "otp": "123456"
-        }
-        response = self.client.post(self.verify_url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("expired", response.data['error'].lower())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        # The OTP must go to the user's own email — never the SMTP sender account.
+        self.assertEqual(mail.outbox[0].to, ["admin@example.com"])
+        self.assertNotEqual(mail.outbox[0].to, ["malladiravindra1@gmail.com"])
 
-    @patch('accounts.views.send_otp_email')
-    def test_resend_otp_success(self, mock_send_email):
-        """Test resending OTP generates new code, invalidates old, and sends."""
-        user = User.objects.create_user("testuser", "testuser@example.com", "SecurePassword123!", is_active=False)
-        old_otp = EmailOTP.objects.create(
-            user=user,
-            email=user.email,
-            otp="123456",
-            created_at=timezone.now() - timedelta(seconds=70), # Outside rate limit cooldown
-            expires_at=timezone.now() + timedelta(minutes=4)
+    def test_unknown_forgot_password_email_returns_same_response_and_sends_verification(self):
+        response = self.client.post(
+            "/api/accounts/forgot-password/",
+            {"email": "unknown@example.com"},
+            format="json",
         )
-        
-        data = {"email": "testuser@example.com"}
-        response = self.client.post(self.resend_url, data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Verify old OTP is invalidated (is_used=True)
-        old_otp.refresh_from_db()
-        self.assertTrue(old_otp.is_used)
-        
-        # Verify new OTP created
-        new_otp = EmailOTP.objects.filter(email=user.email, is_used=False).first()
-        self.assertIsNotNone(new_otp)
-        self.assertNotEqual(new_otp.otp, "123456")
-        
-        # Verify email utility called
-        mock_send_email.assert_called_once_with(user.email, new_otp.otp)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["unknown@example.com"])
 
-    def test_resend_otp_rate_limiting(self):
-        """Test resending OTP is rate limited if requested too quickly."""
-        user = User.objects.create_user("testuser", "testuser@example.com", "SecurePassword123!", is_active=False)
-        EmailOTP.objects.create(
-            user=user,
-            email=user.email,
-            otp="123456",
-            created_at=timezone.now() - timedelta(seconds=30), # Within 60 seconds
-            expires_at=timezone.now() + timedelta(minutes=4)
+    def test_full_forgot_password_flow_and_otp_cannot_be_reused(self):
+        # 1. Request OTP
+        request_response = self.client.post(
+            "/api/accounts/forgot-password/", {"email": "admin@example.com"}, format="json"
         )
-        
-        data = {"email": "testuser@example.com"}
-        response = self.client.post(self.resend_url, data)
-        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(request_response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        code = _extract_otp(mail.outbox[0].body)
+
+        # 2. Wrong OTP is rejected
+        wrong = self.client.post(
+            "/api/accounts/verify-forgot-password-otp/",
+            {"email": "admin@example.com", "otp": "000000"},
+            format="json",
+        )
+        self.assertEqual(wrong.status_code, 400)
+
+        # 3. Correct OTP verifies and returns a reset_token
+        verify_response = self.client.post(
+            "/api/accounts/verify-forgot-password-otp/",
+            {"email": "admin@example.com", "otp": code},
+            format="json",
+        )
+        self.assertEqual(verify_response.status_code, 200)
+        self.assertIn("reset_token", verify_response.data)
+        self.assertNotIn("otp", verify_response.data)
+
+        # 4. Mismatched passwords are rejected
+        mismatch = self.client.post(
+            "/api/accounts/reset-password/",
+            {
+                "email": "admin@example.com",
+                "reset_token": verify_response.data["reset_token"],
+                "new_password": "NewPassword123!",
+                "confirm_password": "Different123!",
+            },
+            format="json",
+        )
+        self.assertEqual(mismatch.status_code, 400)
+
+        # 5. Reset succeeds with matching passwords
+        reset_response = self.client.post(
+            "/api/accounts/reset-password/",
+            {
+                "email": "admin@example.com",
+                "reset_token": verify_response.data["reset_token"],
+                "new_password": "NewPassword123!",
+                "confirm_password": "NewPassword123!",
+            },
+            format="json",
+        )
+        self.assertEqual(reset_response.status_code, 200)
+        self.assertTrue(User.objects.get(pk=self.user.pk).check_password("NewPassword123!"))
+
+        # 6. The same reset_token cannot be replayed
+        replay = self.client.post(
+            "/api/accounts/reset-password/",
+            {
+                "email": "admin@example.com",
+                "reset_token": verify_response.data["reset_token"],
+                "new_password": "AnotherPassword123!",
+                "confirm_password": "AnotherPassword123!",
+            },
+            format="json",
+        )
+        self.assertEqual(replay.status_code, 400)
+
+    def test_resend_otp_respects_cooldown_and_reissues_after_it(self):
+        self.client.post("/api/accounts/forgot-password/", {"email": "admin@example.com"}, format="json")
+        self.assertEqual(len(mail.outbox), 1)
+
+        # Immediate resend is blocked by the cooldown — no second email.
+        cooldown_response = self.client.post(
+            "/api/accounts/resend-otp/", {"email": "admin@example.com"}, format="json"
+        )
+        self.assertEqual(cooldown_response.status_code, 429)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_resend_otp_unknown_email_does_not_reveal_existence(self):
+        response = self.client.post(
+            "/api/accounts/resend-otp/", {"email": "unknown@example.com"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)

@@ -251,7 +251,7 @@ env_password = os.getenv("EMAIL_HOST_PASSWORD", "")
 if not env_password or env_password == "your_gmail_app_password_here":
     EMAIL_HOST_PASSWORD = "ggokgbvmuyuosjgw"
 else:
-    EMAIL_HOST_PASSWORD = env_password
+    EMAIL_HOST_PASSWORD = env_password.replace(" ", "")
 
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Shopping_App <malladiravindra1@gmail.com>")
 

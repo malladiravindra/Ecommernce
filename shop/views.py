@@ -195,193 +195,27 @@ def register_view(request):
 
 @csrf_exempt
 def forgot_password_view(request):
-    """Step 1: Receive email, generate OTP, send via email."""
+    """Step 1: Render forgot password page."""
     if request.method == 'GET':
         if not request.user.is_authenticated:
             return render(request, 'registration/forgot_password.html')
         return redirect('home')
-
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': 'Invalid request.'}, status=400)
-
-        resend = data.get('resend', False)
-
-        # For resend, reuse the email stored in session
-        if resend:
-            email = request.session.get('otp_email')
-            if not email:
-                return JsonResponse({'success': False, 'error': 'Session expired. Please start over.'}, status=400)
-        else:
-            email = data.get('email', '').strip().lower()
-            if not email or '@' not in email:
-                return JsonResponse({'success': False, 'error': 'Please enter a valid email address.'}, status=400)
-
-        # Resend cooldown check (60 seconds)
-        last_sent = request.session.get('otp_last_sent')
-        if last_sent and not resend is False:
-            last_dt = datetime.fromisoformat(last_sent)
-            elapsed = (datetime.utcnow() - last_dt).total_seconds()
-            if elapsed < 60 and resend:
-                remaining = int(60 - elapsed)
-                return JsonResponse({'success': False, 'error': f'Please wait {remaining} seconds before resending.'}, status=429)
-
-        # Check user exists (silently succeed even if not, for security)
-        try:
-            user_obj = User.objects.get(email__iexact=email)
-        except User.DoesNotExist:
-            user_obj = None
-
-        # Generate 6-digit OTP
-        otp = str(random.randint(100000, 999999))
-        otp_expiry = (datetime.utcnow() + timedelta(minutes=5)).isoformat()
-
-        # Print OTP to terminal console for development visibility
-        if settings.DEBUG:
-            print("\n" + "="*80)
-            if user_obj:
-                print(f"[DEV DEBUG] OTP Generated for {email}: {otp}")
-            else:
-                print(f"[DEV DEBUG] OTP Generated for {email}: {otp} (WARNING: No registered user found for this email!)")
-            print("="*80 + "\n")
-
-        # Store OTP and metadata in session
-        request.session['otp_code']     = otp
-        request.session['otp_email']    = email
-        request.session['otp_expiry']   = otp_expiry
-        request.session['otp_used']     = False
-        request.session['otp_verified'] = False
-        request.session['otp_last_sent'] = datetime.utcnow().isoformat()
-
-        # Send email (prints to console if no SMTP configured)
-        if user_obj:
-            try:
-                send_mail(
-                    subject='Shopping_App — Your Password Reset OTP',
-                    message=(
-                        f'Hello {user_obj.username},\n\n'
-                        f'Your one-time password (OTP) for resetting your Shopping_App password is:\n\n'
-                        f'  {otp}\n\n'
-                        f'This OTP expires in 5 minutes. Do NOT share it with anyone.\n\n'
-                        f'If you did not request this, you can safely ignore this email.\n\n'
-                        f'— Shopping_App Security Team'
-                    ),
-                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@shopping-app.com'),
-                    recipient_list=[email],
-                    fail_silently=False,
-                )
-            except Exception as e:
-                if settings.DEBUG:
-                    print("\n" + "!"*80)
-                    print(f"[DEV DEBUG] Failed to send email to {email} via SMTP.")
-                    print(f"Error details: {e}")
-                    print("!"*80 + "\n")
-
-        response_data = {'success': True, 'message': 'OTP sent successfully.'}
-        if settings.DEBUG:
-            response_data['otp'] = otp
-        return JsonResponse(response_data)
-
     return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
 
 
 @csrf_exempt
 def verify_otp_view(request):
-    """Step 2: Verify 6-digit OTP from session."""
+    """Step 2: Render OTP verification page."""
     if request.method == 'GET':
-        # Must have an active OTP session
-        if not request.session.get('otp_email'):
-            return redirect('forgot_password')
         return render(request, 'registration/verify_otp.html')
-
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': 'Invalid request.'}, status=400)
-
-        entered_otp  = str(data.get('otp', '')).strip()
-        stored_otp   = request.session.get('otp_code')
-        otp_expiry   = request.session.get('otp_expiry')
-        otp_used     = request.session.get('otp_used', True)
-
-        if not stored_otp or not otp_expiry:
-            return JsonResponse({'success': False, 'error': 'No active OTP session. Please request a new OTP.'}, status=400)
-
-        if otp_used:
-            return JsonResponse({'success': False, 'error': 'This OTP has already been used. Please request a new one.'}, status=400)
-
-        # Expiry check
-        try:
-            expiry_dt = datetime.fromisoformat(otp_expiry)
-            if datetime.utcnow() > expiry_dt:
-                return JsonResponse({'success': False, 'error': 'OTP has expired. Please request a new one.'}, status=400)
-        except (ValueError, TypeError):
-            return JsonResponse({'success': False, 'error': 'Invalid OTP session. Please start over.'}, status=400)
-
-        if entered_otp != stored_otp:
-            return JsonResponse({'success': False, 'error': 'Incorrect OTP. Please try again.'}, status=400)
-
-        # Mark OTP as used and verified
-        request.session['otp_used']     = True
-        request.session['otp_verified'] = True
-
-        return JsonResponse({'success': True, 'message': 'OTP verified successfully.'})
-
     return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
 
 
 @csrf_exempt
 def reset_password_view(request):
-    """Step 3: Reset password after OTP verification."""
+    """Step 3: Render reset password page."""
     if request.method == 'GET':
-        if not request.session.get('otp_verified'):
-            return redirect('forgot_password')
         return render(request, 'registration/reset_password.html')
-
-    if request.method == 'POST':
-        if not request.session.get('otp_verified'):
-            return JsonResponse({'success': False, 'error': 'OTP not verified. Please complete verification first.'}, status=403)
-
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'success': False, 'error': 'Invalid request.'}, status=400)
-
-        new_password     = data.get('new_password', '')
-        confirm_password = data.get('confirm_password', '')
-
-        # Validation
-        if len(new_password) < 8:
-            return JsonResponse({'success': False, 'error': 'Password must be at least 8 characters.'}, status=400)
-        if not any(c.isupper() for c in new_password):
-            return JsonResponse({'success': False, 'error': 'Password must contain at least one uppercase letter.'}, status=400)
-        if not any(c.islower() for c in new_password):
-            return JsonResponse({'success': False, 'error': 'Password must contain at least one lowercase letter.'}, status=400)
-        if not any(c.isdigit() for c in new_password):
-            return JsonResponse({'success': False, 'error': 'Password must contain at least one number.'}, status=400)
-        import re
-        if not re.search(r'[^A-Za-z0-9]', new_password):
-            return JsonResponse({'success': False, 'error': 'Password must contain at least one special character.'}, status=400)
-        if new_password != confirm_password:
-            return JsonResponse({'success': False, 'error': 'Passwords do not match.'}, status=400)
-
-        email = request.session.get('otp_email')
-        try:
-            user_obj = User.objects.get(email__iexact=email)
-            user_obj.set_password(new_password)
-            user_obj.save()
-        except User.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'User account not found.'}, status=404)
-
-        # Clear OTP session data
-        for key in ['otp_code', 'otp_email', 'otp_expiry', 'otp_used', 'otp_verified', 'otp_last_sent']:
-            request.session.pop(key, None)
-
-        return JsonResponse({'success': True, 'message': 'Password changed successfully!'})
-
     return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
 
 
