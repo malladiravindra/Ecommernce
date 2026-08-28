@@ -1,6 +1,7 @@
 import logging
 import re
 
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core import signing
@@ -153,10 +154,13 @@ class ResendOTPView(APIView):
                 # request — it would leak account existence.
                 return Response({"detail": GENERIC_RESET_MESSAGE})
             return Response({"detail": "Too many OTP requests. Please try again later."}, status=429)
-        except OTPDeliveryError:
+        except OTPDeliveryError as e:
             # Full traceback already logged inside utils.send_otp_email.
             logger.error("resend-otp: OTP delivery failed for user id=%s purpose=%s", user.pk, purpose)
-            return Response({"detail": "Unable to send the verification email. Check SMTP configuration."}, status=503)
+            detail = "Unable to send the verification email. Check SMTP configuration."
+            if settings.DEBUG:
+                detail = f"SMTP delivery failed: {str(e.__cause__ or e)}. Check settings.py and the server console for full traceback."
+            return Response({"detail": detail}, status=503)
 
         response = {
             "success": sent,
@@ -211,12 +215,15 @@ class RequestPasswordResetView(APIView):
             logger.debug(f"[ForgotPassword] Step 2: user found — id={user.pk}, registered email={mask_email(user.email)}")
             try:
                 issue_otp(user, EmailOTP.PASSWORD_RESET)
-            except OTPDeliveryError:
+            except OTPDeliveryError as e:
                 # Logged (with traceback) inside utils.send_otp_email already.
-                # The response to the client stays generic on purpose — never
-                # reveal delivery/account state — but this is NOT swallowed
-                # silently: check the server terminal for the traceback.
+                # The response to the client stays generic on purpose in production,
+                # but we surface it in debug mode to facilitate troubleshooting.
                 logger.error("forgot-password: OTP delivery failed for user id=%s", user.pk)
+                if settings.DEBUG:
+                    return Response({
+                        "detail": f"SMTP delivery failed: {str(e.__cause__ or e)}. Check settings.py and the server console for full traceback."
+                    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             except OTPRateLimitError:
                 logger.warning("forgot-password: rate limit hit for user id=%s", user.pk)
         return Response({"success": True, "detail": GENERIC_RESET_MESSAGE})

@@ -188,7 +188,7 @@
                 expirySeconds = 300;
                 startResendTimer();
             } else {
-                showAlert(data.error || 'Failed to resend OTP.', 'danger');
+                showAlert(data.detail || data.error || 'Failed to resend OTP.', 'danger');
                 resendBtn.disabled = false;
             }
         } catch {
@@ -239,7 +239,7 @@
                 showAlert(successMsg, 'success');
                 setTimeout(() => { window.location.href = redirectUrl; }, 1500);
             } else {
-                showAlert(data.error || 'Invalid OTP. Please try again.', 'danger');
+                showAlert(data.detail || data.error || 'Invalid OTP. Please try again.', 'danger');
                 otpBoxes.forEach(b => { b.value=''; b.classList.remove('filled'); });
                 otpBoxes[0].focus();
                 verifyBtn.disabled = false;

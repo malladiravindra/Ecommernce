@@ -99,6 +99,8 @@ AssetFlow Team
             print("\n" + "="*80)
             print(f"DEVELOPMENT OTP FOR {user_email} ({purpose}): {otp}")
             print("="*80 + "\n")
+            logger.warning(f"[AssetFlow OTP] SMTP failed but DEBUG is True. Printing OTP to console and bypassing error: {error!r}")
+            return
         # Full traceback to the terminal — never swallowed. Never logs the
         # OTP or any credential, only the masked recipient and purpose.
         logger.debug(f"[AssetFlow OTP] FAILED to send {purpose} OTP to {masked}: {error!r}")
