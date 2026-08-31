@@ -11,13 +11,14 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Count
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.core.mail import send_mail
 from django.conf import settings
 from .forms import UserRegisterForm
+from .rbac import RBACMixin, get_user_role, role_required
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
@@ -646,54 +647,156 @@ class OrderDetailView(LoginRequiredMixin, DetailView):
         return Order.objects.filter(user=self.request.user)
 
 
-class AdminDashboardView(LoginRequiredMixin, View):
-    def get(self, request):
-        if not request.user.is_staff:
-            messages.error(request, "You do not have permission to access the admin dashboard.")
-            return redirect('home')
+class AdminDashboardView(RBACMixin, View):
+    """Admin dashboard — accessible by staff and superadmin only."""
+    allowed_roles = ['staff', 'superadmin']
+    rbac_redirect_url = 'home'
 
-        from django.db.models import Sum, Count
+    def get(self, request):
+        import json as json_mod
+        from django.utils import timezone as tz
+
         total_orders   = Order.objects.count()
         total_products = Product.objects.count()
         total_users    = User.objects.count()
         total_revenue  = Order.objects.filter(payment_status=True).aggregate(rev=Sum('total_price'))['rev'] or 0
         pending_orders = Order.objects.filter(status='Pending').count()
+        processing_orders = Order.objects.filter(status='Processing').count()
+        shipped_orders = Order.objects.filter(status='Shipped').count()
+        delivered_orders = Order.objects.filter(status='Delivered').count()
+        cancelled_orders = Order.objects.filter(status='Cancelled').count()
         low_stock      = Product.objects.filter(stock__gt=0, stock__lte=5).count()
         out_of_stock   = Product.objects.filter(stock=0).count()
 
-        recent_orders   = Order.objects.select_related('user').prefetch_related('items').order_by('-created_at')[:8]
+        recent_orders    = Order.objects.select_related('user').prefetch_related('items').order_by('-created_at')[:8]
         recent_customers = User.objects.order_by('-date_joined')[:5]
+        low_stock_products = Product.objects.filter(stock__lte=5, is_active=True).order_by('stock')[:5]
+        top_products = Product.objects.annotate(order_count=Count('orderitem')).order_by('-order_count')[:5]
 
         # Monthly revenue data for chart (last 6 months)
-        from django.utils import timezone as tz
-        import json as json_mod
         months_labels = []
         months_data   = []
         for i in range(5, -1, -1):
-            dt = tz.now() - timedelta(days=i*30)
-            label = dt.strftime('%b')
+            dt = tz.now() - timedelta(days=i * 30)
             rev = Order.objects.filter(
                 payment_status=True,
                 created_at__year=dt.year,
                 created_at__month=dt.month
             ).aggregate(s=Sum('total_price'))['s'] or 0
-            months_labels.append(label)
+            months_labels.append(dt.strftime('%b %Y'))
             months_data.append(float(rev))
 
+        # Order status distribution for donut chart
+        status_data = [
+            pending_orders, processing_orders, shipped_orders,
+            delivered_orders, cancelled_orders
+        ]
+
+        user_role = get_user_role(request.user)
+
         context = {
-            'total_orders':    total_orders,
-            'total_products':  total_products,
-            'total_users':     total_users,
-            'total_revenue':   total_revenue,
-            'pending_orders':  pending_orders,
-            'low_stock':       low_stock,
-            'out_of_stock':    out_of_stock,
-            'recent_orders':   recent_orders,
-            'recent_customers': recent_customers,
-            'chart_labels':    json_mod.dumps(months_labels),
-            'chart_data':      json_mod.dumps(months_data),
+            'total_orders':      total_orders,
+            'total_products':    total_products,
+            'total_users':       total_users,
+            'total_revenue':     total_revenue,
+            'pending_orders':    pending_orders,
+            'processing_orders': processing_orders,
+            'shipped_orders':    shipped_orders,
+            'delivered_orders':  delivered_orders,
+            'cancelled_orders':  cancelled_orders,
+            'low_stock':         low_stock,
+            'out_of_stock':      out_of_stock,
+            'recent_orders':     recent_orders,
+            'recent_customers':  recent_customers,
+            'low_stock_products': low_stock_products,
+            'top_products':      top_products,
+            'chart_labels':      json_mod.dumps(months_labels),
+            'chart_data':        json_mod.dumps(months_data),
+            'status_data':       json_mod.dumps(status_data),
+            'user_role':         user_role,
         }
         return render(request, 'shop/admin_dashboard.html', context)
+
+
+class UserManagementView(RBACMixin, View):
+    """User management — superadmin only."""
+    allowed_roles = ['superadmin']
+    rbac_redirect_url = 'admin_dashboard'
+
+    def get(self, request):
+        users = User.objects.all().order_by('-date_joined')
+        search = request.GET.get('q', '')
+        role_filter = request.GET.get('role', '')
+
+        if search:
+            users = users.filter(
+                Q(username__icontains=search) |
+                Q(email__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search)
+            )
+        if role_filter == 'superadmin':
+            users = users.filter(is_superuser=True)
+        elif role_filter == 'staff':
+            users = users.filter(is_staff=True, is_superuser=False)
+        elif role_filter == 'customer':
+            users = users.filter(is_staff=False, is_superuser=False)
+
+        users_data = []
+        for u in users:
+            users_data.append({
+                'user': u,
+                'role': get_user_role(u),
+                'orders_count': Order.objects.filter(user=u).count(),
+            })
+
+        context = {
+            'users_data': users_data,
+            'total_users': User.objects.count(),
+            'staff_count': User.objects.filter(is_staff=True, is_superuser=False).count(),
+            'superadmin_count': User.objects.filter(is_superuser=True).count(),
+            'customer_count': User.objects.filter(is_staff=False, is_superuser=False).count(),
+            'search': search,
+            'role_filter': role_filter,
+        }
+        return render(request, 'shop/user_management.html', context)
+
+    def post(self, request):
+        """Toggle staff/superuser flags via AJAX."""
+        if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Invalid request'}, status=400)
+        try:
+            data = json.loads(request.body)
+            user_id = data.get('user_id')
+            action  = data.get('action')  # 'make_staff', 'make_superadmin', 'make_customer', 'toggle_active'
+            target  = get_object_or_404(User, id=user_id)
+
+            # Prevent self-demotion
+            if target == request.user and action in ('make_customer', 'toggle_active'):
+                return JsonResponse({'error': 'You cannot demote or deactivate your own account.'}, status=400)
+
+            if action == 'make_staff':
+                target.is_staff = True
+                target.is_superuser = False
+            elif action == 'make_superadmin':
+                target.is_staff = True
+                target.is_superuser = True
+            elif action == 'make_customer':
+                target.is_staff = False
+                target.is_superuser = False
+            elif action == 'toggle_active':
+                target.is_active = not target.is_active
+            else:
+                return JsonResponse({'error': 'Unknown action'}, status=400)
+
+            target.save()
+            return JsonResponse({
+                'success': True,
+                'new_role': get_user_role(target),
+                'is_active': target.is_active,
+            })
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
 
 
 class UserDashboardView(LoginRequiredMixin, View):

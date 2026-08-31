@@ -43,6 +43,7 @@ urlpatterns = [
     
     # Admin Custom Dashboard
     path('admin-dashboard/', views.AdminDashboardView.as_view(), name='admin_dashboard'),
+    path('user-management/', views.UserManagementView.as_view(), name='user_management'),
 
     # Chat/Messaging
     path('chat/', views.ConversationListView.as_view(), name='conversation_list'),
