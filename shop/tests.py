@@ -90,7 +90,7 @@ class PortalLoginTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data['success'])
-        self.assertEqual(data['redirect_url'], '/admin-dashboard/')
+        self.assertEqual(data['redirect_url'], '/panel/')
 
     def test_developer_portal_login_successful_for_developer(self):
         """Developer logs in via developer portal successfully."""
@@ -105,7 +105,7 @@ class PortalLoginTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data['success'])
-        self.assertEqual(data['redirect_url'], '/admin-dashboard/')
+        self.assertEqual(data['redirect_url'], '/panel/')
 
     def test_developer_portal_login_forbidden_for_standard_customer(self):
         """Customer tries to log in via developer portal; access is rejected with a 403."""

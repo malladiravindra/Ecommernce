@@ -1,5 +1,7 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -15,6 +17,7 @@ def _extract_otp(email_body):
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class AccountsApiTests(TestCase):
     def setUp(self):
+        cache.clear()  # reset DRF throttle counters between tests
         self.client = APIClient()
         self.user = User.objects.create_user(
             username="admin", email="admin@example.com", password="OldPassword123!"
@@ -40,7 +43,7 @@ class AccountsApiTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         # The OTP must go to the user's own email — never the SMTP sender account.
         self.assertEqual(mail.outbox[0].to, ["admin@example.com"])
-        self.assertNotEqual(mail.outbox[0].to, ["malladiravindra1@gmail.com"])
+        self.assertNotIn(settings.EMAIL_HOST_USER or "sender@invalid", mail.outbox[0].to)
 
     def test_unknown_forgot_password_email_returns_same_response_and_sends_verification(self):
         response = self.client.post(
@@ -136,3 +139,67 @@ class AccountsApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(mail.outbox), 0)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class RegistrationApiTests(TestCase):
+    def setUp(self):
+        cache.clear()  # reset DRF throttle counters between tests
+        self.client = APIClient()
+        self.payload = {"username": "johndoe123", "email": "john@example.com", "password": "Str0ng!Passw0rd"}
+
+    def test_full_registration_flow(self):
+        # 1. Register -> 201, inactive customer account, OTP emailed to the user
+        response = self.client.post("/api/accounts/register/", self.payload, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.data["success"])
+        user = User.objects.get(email="john@example.com")
+        self.assertFalse(user.is_active)
+        self.assertFalse(user.is_staff or user.is_superuser)
+        self.assertEqual(mail.outbox[-1].to, ["john@example.com"])
+
+        # 2. Login is refused until verified
+        login = self.client.post("/ajax-login/", {"email": "john@example.com", "password": "Str0ng!Passw0rd"}, format="json")
+        self.assertEqual(login.status_code, 400)
+
+        # 3. Wrong OTP rejected, correct OTP activates the account
+        bad = self.client.post("/api/accounts/verify-registration-otp/", {"email": "john@example.com", "otp": "000000"}, format="json")
+        self.assertEqual(bad.status_code, 400)
+        otp = _extract_otp(mail.outbox[-1].body)
+        ok = self.client.post("/api/accounts/verify-registration-otp/", {"email": "john@example.com", "otp": otp}, format="json")
+        self.assertEqual(ok.status_code, 200)
+        self.assertTrue(ok.data["success"])
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+
+        # 4. OTP can't be reused; login now works
+        again = self.client.post("/api/accounts/verify-registration-otp/", {"email": "john@example.com", "otp": otp}, format="json")
+        self.assertEqual(again.status_code, 400)
+        login = self.client.post("/ajax-login/", {"email": "john@example.com", "password": "Str0ng!Passw0rd"}, format="json")
+        self.assertEqual(login.status_code, 200)
+
+    def test_duplicate_email_and_weak_password_rejected_as_json(self):
+        User.objects.create_user(username="existing", email="john@example.com", password="x")
+        response = self.client.post("/api/accounts/register/", self.payload, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("email", response.data)
+
+        weak = dict(self.payload, email="new@example.com", password="12345678")
+        response = self.client.post("/api/accounts/register/", weak, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("password", response.data)
+
+    def test_registration_resend_uses_existing_resend_endpoint(self):
+        self.client.post("/api/accounts/register/", self.payload, format="json")
+        from accounts.models import EmailOTP
+        EmailOTP.objects.update(last_sent_at="2000-01-01T00:00:00Z")  # skip the 60s cooldown
+        response = self.client.post("/api/accounts/resend-otp/", {"email": "john@example.com", "purpose": "registration"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_disabled_account_cannot_be_reactivated_via_registration_flow(self):
+        User.objects.create_user(username="banned", email="banned@example.com", password="x", is_active=False)
+        response = self.client.post("/api/accounts/resend-otp/", {"email": "banned@example.com", "purpose": "registration"}, format="json")
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertFalse(User.objects.get(email="banned@example.com").is_active)

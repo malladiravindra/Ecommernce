@@ -11,7 +11,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 import copy
 import django.template.context
@@ -37,21 +40,56 @@ load_dotenv(BASE_DIR / '.env')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
+def env_bool(name, default=False):
+    return os.getenv(name, str(default)).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def env_list(name, default=''):
+    return [item.strip() for item in os.getenv(name, default).split(',') if item.strip()]
+
+
+# Production is the default: local development opts in with DEBUG=True in .env.
+DEBUG = env_bool('DEBUG', False)
+TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key-12345')
+SECRET_KEY = os.getenv('SECRET_KEY', '')
+if not SECRET_KEY:
+    if DEBUG or TESTING:
+        SECRET_KEY = 'django-insecure-local-development-only'
+    else:
+        raise ImproperlyConfigured('SECRET_KEY must be set in the environment when DEBUG is False.')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', '127.0.0.1,localhost')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+# Origins allowed to submit session/CSRF-protected requests. Defaults to
+# https:// for each real host in ALLOWED_HOSTS (plus http:// in DEBUG).
+CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
+if not CSRF_TRUSTED_ORIGINS:
+    for host in ALLOWED_HOSTS:
+        if host not in ('127.0.0.1', 'localhost', '*'):
+            CSRF_TRUSTED_ORIGINS.append(f"https://{host.lstrip('.')}")
+            if DEBUG:
+                CSRF_TRUSTED_ORIGINS.append(f"http://{host.lstrip('.')}")
 
-# Dynamic CSRF trusted origins for custom subdomains/domains
-CSRF_TRUSTED_ORIGINS = []
-for host in ALLOWED_HOSTS:
-    host = host.strip()
-    if host and host not in ('127.0.0.1', 'localhost', '*'):
-        CSRF_TRUSTED_ORIGINS.append(f"https://{host}")
-        CSRF_TRUSTED_ORIGINS.append(f"http://{host}")
+# HTTPS / cookie security. Secure cookies follow DEBUG by default; the
+# redirect/HSTS/proxy settings depend on the hosting setup, so they are
+# opt-in via environment variables.
+SESSION_COOKIE_SECURE = env_bool('SESSION_COOKIE_SECURE', not DEBUG)
+CSRF_COOKIE_SECURE = env_bool('CSRF_COOKIE_SECURE', not DEBUG)
+SESSION_COOKIE_HTTPONLY = True
+SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', False)
+SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', False)
+SECURE_HSTS_PRELOAD = env_bool('SECURE_HSTS_PRELOAD', False)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
+# Behind a TLS-terminating proxy/load balancer (Heroku, Render, Nginx…) set
+# SECURE_PROXY_SSL_HEADER=HTTP_X_FORWARDED_PROTO so request.is_secure() and
+# absolute media URLs use https://. Only set it if the proxy strips/sets the header.
+if os.getenv('SECURE_PROXY_SSL_HEADER'):
+    SECURE_PROXY_SSL_HEADER = (os.getenv('SECURE_PROXY_SSL_HEADER'), 'https')
 
 
 
@@ -68,6 +106,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites', 
     
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt', # JWT support
     'rest_framework_simplejwt.token_blacklist',
@@ -81,11 +120,14 @@ INSTALLED_APPS = [
     # Local apps
     'shop.apps.ShopConfig',
     'accounts',
+    'adminpanel',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -180,8 +222,24 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# Static files are served by WhiteNoise in production (run collectstatic at
+# build time). The hashed manifest storage needs collectstatic to have run,
+# so it's used only outside DEBUG/test runs unless overridden.
+STATIC_MANIFEST = env_bool('STATIC_MANIFEST', not DEBUG and not TESTING)
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage' if STATIC_MANIFEST
+        else 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
+
+MEDIA_URL = os.getenv('MEDIA_URL', '/media/')
+MEDIA_ROOT = Path(os.getenv('MEDIA_ROOT', BASE_DIR / 'media'))
+# Uploaded product images. With DEBUG=False Django does not serve them unless
+# SERVE_MEDIA=True (single-server deployments with a persistent disk). For
+# multi-instance or ephemeral-filesystem hosting, use object storage instead.
+SERVE_MEDIA = env_bool('SERVE_MEDIA', DEBUG)
 
 # Cache configuration (Redis support)
 REDIS_URL = os.getenv('REDIS_URL')
@@ -219,7 +277,11 @@ AUTHENTICATION_BACKENDS = [
 ]
 ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
-ACCOUNT_EMAIL_VERIFICATION = 'none' # Skip verification links for dev speed
+ACCOUNT_EMAIL_VERIFICATION = 'none' # Local signup is closed (see ACCOUNT_ADAPTER); applies to social logins only
+# Customer self-registration goes through /api/accounts/register/ (email OTP).
+# allauth's own /accounts/signup/ would bypass that, so it is closed.
+ACCOUNT_ADAPTER = 'accounts.adapters.NoLocalSignupAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'accounts.adapters.OpenSocialSignupAdapter'
 ACCOUNT_SESSION_REMEMBER = True     # Config for "Remember Me"
 SOCIALACCOUNT_LOGIN_ON_GET = True   # Skip intermediate social login confirmation page
 
@@ -246,15 +308,10 @@ EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.Email
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "malladiravindra1@gmail.com")
-
-env_password = os.getenv("EMAIL_HOST_PASSWORD", "")
-if not env_password or env_password == "your_gmail_app_password_here":
-    EMAIL_HOST_PASSWORD = "ggokgbvmuyuosjgw"
-else:
-    EMAIL_HOST_PASSWORD = env_password.replace(" ", "")
-
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Shopping_App <malladiravindra1@gmail.com>")
+# SMTP credentials come only from the environment — never from source code.
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "").replace(" ", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", f"Shopping_App <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "Shopping_App <no-reply@localhost>")
 
 
 # DRF configurations with SimpleJWT support
@@ -267,7 +324,36 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
+    # Number of trusted reverse proxies in front of the app. 0 = use the
+    # direct peer address, so clients can't spoof X-Forwarded-For to evade
+    # throttling. Set to 1 behind a single proxy/load balancer.
+    'NUM_PROXIES': int(os.getenv('NUM_PROXIES', '0')),
+    # Applied per view via `throttle_scope` (auth, payments).
+    'DEFAULT_THROTTLE_RATES': {
+        'auth': os.getenv('THROTTLE_AUTH_RATE', '20/min'),
+        'payments': os.getenv('THROTTLE_PAYMENTS_RATE', '30/min'),
+    },
 }
+
+# CORS — the bundled frontend is same-origin; list any separate frontend
+# origins (e.g. https://shop.example.com) in CORS_ALLOWED_ORIGINS.
+CORS_ALLOWED_ORIGINS = [o.strip() for o in os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if o.strip()]
+CORS_URLS_REGEX = r'^/api/.*$'
+
+# Payment gateway (Razorpay). Use rzp_test_* keys for test mode.
+RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET', '')
+# Secret configured on the Razorpay dashboard webhook (Settings → Webhooks).
+RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
+
+# Unpaid PENDING orders older than this are cancelled by
+# `python manage.py expire_pending_orders` (schedule it, e.g. every 15 min).
+PENDING_ORDER_TIMEOUT_MINUTES = int(os.getenv('PENDING_ORDER_TIMEOUT_MINUTES', '60'))
+
+# Checkout pricing rules (INR). A flat delivery charge that is waived once
+# the discounted item total reaches FREE_DELIVERY_MIN_ORDER. 0 disables.
+DELIVERY_CHARGE = os.getenv('DELIVERY_CHARGE', '0')
+FREE_DELIVERY_MIN_ORDER = os.getenv('FREE_DELIVERY_MIN_ORDER', '0')
 
 from datetime import timedelta
 SIMPLE_JWT = {

@@ -1,0 +1,42 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Profile{% endblock %}
+{% block heading %}Profile{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-7">
+        <div class="ap-card">
+            <div class="ap-card-head"><h2>Signed-in account</h2><span class="badge bg-danger" id="p-badge">&nbsp;</span></div>
+            <div class="ap-card-body">
+                <dl class="ap-kv">
+                    <dt>Name</dt><dd id="p-name">…</dd>
+                    <dt>Email</dt><dd id="p-email">…</dd>
+                    <dt>Username</dt><dd id="p-username">…</dd>
+                    <dt>Role</dt><dd id="p-role">…</dd>
+                    <dt>Account type</dt><dd id="p-type">…</dd>
+                    <dt>Member since</dt><dd id="p-joined">…</dd>
+                </dl>
+                <p class="small text-muted mt-3 mb-0">Admin accounts are created by the site owner (<code>python manage.py createsuperuser</code>) — there is no public admin sign-up. Name and email can be changed from the <a href="{% url 'profile' %}">account profile page</a>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const f = id => document.getElementById(id);
+    // Role shown here comes from the server's profile response.
+    Admin.api('{% url "api_profile" %}').then(p => {
+        f('p-name').textContent = p.full_name || p.username;
+        f('p-email').textContent = p.email;
+        f('p-username').textContent = p.username;
+        f('p-role').textContent = (p.role || '').toUpperCase();
+        f('p-type').textContent = p.account_type;
+        f('p-joined').textContent = Admin.shortDate(p.date_joined);
+        f('p-badge').textContent = p.role === 'admin' ? 'You are an Admin' : 'You are a Customer';
+    }).catch(err => Admin.toast(err.message, 'error'));
+})();
+</script>
+{% endblock %}

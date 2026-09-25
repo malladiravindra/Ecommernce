@@ -1,0 +1,101 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Customers{% endblock %}
+{% block heading %}Customers{% endblock %}
+
+{% block content %}
+<div class="alert alert-light border small mb-3">
+    <i class="fa-solid fa-circle-info me-1 text-primary"></i>
+    Customers create their own accounts through registration. Admins can view customers here but cannot create customer accounts.
+</div>
+<div class="ap-card">
+    <div class="ap-card-head">
+        <div class="ap-toolbar w-100">
+            <input type="search" id="f-q" class="form-control ap-search" placeholder="Search name, username or email…" aria-label="Search customers">
+        </div>
+    </div>
+    <div class="ap-table-wrap">
+        <table class="ap-table">
+            <thead><tr><th>Customer</th><th>Phone</th><th>Account</th><th>Orders</th><th>Total spent</th><th>Joined</th><th></th></tr></thead>
+            <tbody id="rows"><tr><td colspan="7" class="ap-loading">Loading…</td></tr></tbody>
+        </table>
+    </div>
+    <div class="ap-card-body d-flex justify-content-between align-items-center border-top" id="pager"></div>
+</div>
+
+<div class="modal fade" id="customer-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4">
+            <div class="modal-header"><h5 class="modal-title fw-bold" id="customer-title">Customer</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body" id="customer-body"><div class="ap-loading">Loading…</div></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, money, date, shortDate, statusBadge, paymentBadge, toast, pagination, debounce, query } = Admin;
+    const API = '{% url "api_admin_customers" %}';
+    const orderUrl = id => `{% url 'adminpanel:order_detail' 0 %}`.replace('/0/', `/${id}/`);
+    const f = id => document.getElementById(id);
+    let page = 1;
+
+    const accountBadge = active => active
+        ? '<span class="badge-status b-active">Verified</span>'
+        : '<span class="badge-status b-inactive">Unverified / disabled</span>';
+
+    async function load() {
+        f('rows').innerHTML = '<tr><td colspan="7" class="ap-loading">Loading…</td></tr>';
+        let data;
+        try { data = await api(API + query({ q: f('f-q').value.trim(), page })); }
+        catch (err) { toast(err.message, 'error'); return; }
+        f('rows').innerHTML = data.results.length ? data.results.map(c => `
+            <tr>
+                <td><div class="fw-semibold">${esc(c.full_name || c.username)}</div><div class="small text-muted">${esc(c.email)}</div></td>
+                <td>${esc(c.phone_number || '—')}</td>
+                <td>${accountBadge(c.is_active)}</td>
+                <td>${c.orders_count}</td>
+                <td class="fw-semibold">${money(c.total_spent)}</td>
+                <td class="text-muted small">${shortDate(c.date_joined)}</td>
+                <td class="text-end"><button class="btn btn-light btn-sm" data-view="${c.id}">View</button></td>
+            </tr>`).join('') : '<tr><td colspan="7" class="ap-empty"><i class="fa-solid fa-users"></i>No customers found.</td></tr>';
+        pagination(f('pager'), data, page, p => { page = p; load(); });
+    }
+
+    f('rows').addEventListener('click', async e => {
+        const btn = e.target.closest('[data-view]');
+        if (!btn) return;
+        f('customer-body').innerHTML = '<div class="ap-loading">Loading…</div>';
+        bootstrap.Modal.getOrCreateInstance(f('customer-modal')).show();
+        try {
+            const c = await api(`${API}${btn.dataset.view}/`);
+            f('customer-title').textContent = c.full_name || c.username;
+            f('customer-body').innerHTML = `
+                <dl class="ap-kv mb-4">
+                    <dt>Username</dt><dd>${esc(c.username)}</dd>
+                    <dt>Email</dt><dd>${esc(c.email)}</dd>
+                    <dt>Phone</dt><dd>${esc(c.phone_number || '—')}</dd>
+                    <dt>Account</dt><dd>${accountBadge(c.is_active)}</dd>
+                    <dt>Joined</dt><dd>${date(c.date_joined)}</dd>
+                    <dt>Last login</dt><dd>${date(c.last_login)}</dd>
+                    <dt>Total spent</dt><dd class="fw-semibold">${money(c.total_spent)}</dd>
+                </dl>
+                <h6 class="fw-bold">Orders (${c.orders.length})</h6>
+                ${c.orders.length ? `<div class="ap-table-wrap"><table class="ap-table">
+                    <thead><tr><th>Order</th><th>Total</th><th>Payment</th><th>Status</th><th>Placed</th></tr></thead>
+                    <tbody>${c.orders.map(o => `<tr>
+                        <td><a href="${orderUrl(o.id)}" class="fw-semibold text-decoration-none">#${o.id}</a></td>
+                        <td>${money(o.total_price)}</td><td>${paymentBadge(o.payment)}</td>
+                        <td>${statusBadge(o.status, o.status_display)}</td><td class="small text-muted">${date(o.created_at)}</td>
+                    </tr>`).join('')}</tbody></table></div>` : '<p class="text-muted">No orders yet.</p>'}`;
+        } catch (err) {
+            f('customer-body').innerHTML = `<div class="alert alert-danger">${esc(err.message)}</div>`;
+        }
+    });
+
+    f('f-q').addEventListener('input', debounce(() => { page = 1; load(); }));
+    load();
+})();
+</script>
+{% endblock %}

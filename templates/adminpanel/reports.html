@@ -1,0 +1,91 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Reports{% endblock %}
+{% block heading %}Reports{% endblock %}
+
+{% block content %}
+<div class="ap-card mb-3">
+    <form class="ap-card-body ap-toolbar" id="range-form">
+        <label class="small fw-semibold" for="r-from">From</label>
+        <input type="date" id="r-from" class="form-control">
+        <label class="small fw-semibold" for="r-to">To</label>
+        <input type="date" id="r-to" class="form-control">
+        <button class="btn btn-primary" type="submit">Run report</button>
+        <span class="small text-muted ms-auto">Sales = paid orders that weren't cancelled.</span>
+    </form>
+</div>
+
+<div class="row g-3 mb-3" id="summary"></div>
+
+<div class="row g-3">
+    <div class="col-xl-7">
+        <div class="ap-card h-100">
+            <div class="ap-card-head"><h2>Daily sales</h2></div>
+            <div class="ap-table-wrap" style="max-height:420px;overflow:auto">
+                <table class="ap-table">
+                    <thead><tr><th>Date</th><th>Paid orders</th><th>Revenue</th><th style="width:40%"></th></tr></thead>
+                    <tbody id="daily"><tr><td colspan="4" class="ap-loading">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-5">
+        <div class="ap-card mb-3">
+            <div class="ap-card-head"><h2>Top products</h2></div>
+            <div class="ap-table-wrap">
+                <table class="ap-table">
+                    <thead><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr></thead>
+                    <tbody id="top"><tr><td colspan="3" class="ap-loading">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="ap-card">
+            <div class="ap-card-head"><h2>Orders &amp; payments by status</h2></div>
+            <div class="ap-card-body" id="breakdown"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, money, toast, statusBadge, query } = Admin;
+    const API = '{% url "api_admin_reports" %}';
+    const f = id => document.getElementById(id);
+    const iso = d => d.toISOString().slice(0, 10);
+    const today = new Date();
+    f('r-to').value = iso(today);
+    f('r-from').value = iso(new Date(today.getTime() - 29 * 86400000));
+
+    async function run() {
+        let r;
+        try { r = await api(API + query({ from: f('r-from').value, to: f('r-to').value })); }
+        catch (err) { toast(err.message, 'error'); return; }
+        const s = r.summary;
+        const cards = [
+            ['Revenue', money(s.revenue)], ['Paid orders', s.paid_orders], ['All orders', s.orders],
+            ['Avg. order value', money(s.average_order_value)], ['Items sold', s.items_sold], ['New customers', s.new_customers],
+            ['Refunds required', `${s.refunds_required} · ${money(s.refunds_required_amount)}`],
+        ];
+        f('summary').innerHTML = cards.map(([label, value]) => `
+            <div class="col-6 col-lg-3"><div class="ap-card ap-stat"><div><div class="ap-stat-label">${label}</div><div class="ap-stat-value">${esc(value)}</div></div></div></div>`).join('');
+
+        const max = Math.max(1, ...r.daily_sales.map(d => Number(d.revenue)));
+        f('daily').innerHTML = r.daily_sales.length ? r.daily_sales.map(d => `
+            <tr><td>${esc(d.date)}</td><td>${d.orders}</td><td class="fw-semibold">${money(d.revenue)}</td>
+                <td><div class="ap-progress"><span style="width:${(Number(d.revenue) / max * 100).toFixed(1)}%"></span></div></td></tr>`).join('')
+            : '<tr><td colspan="4" class="ap-empty">No paid orders in this range.</td></tr>';
+        f('top').innerHTML = r.top_products.length ? r.top_products.map(p => `
+            <tr><td class="fw-semibold">${esc(p.product_name)}</td><td>${p.units}</td><td>${money(p.revenue)}</td></tr>`).join('')
+            : '<tr><td colspan="3" class="ap-empty">No sales yet.</td></tr>';
+        f('breakdown').innerHTML = `
+            <div class="mb-2 small fw-semibold text-muted">Orders</div>
+            <div class="d-flex flex-wrap gap-2 mb-3">${r.orders_by_status.map(o => `${statusBadge(o.status, o.label)} <strong class="me-2">${o.count}</strong>`).join('')}</div>
+            <div class="mb-2 small fw-semibold text-muted">Payments</div>
+            <div class="d-flex flex-wrap gap-2">${r.payments_by_status.map(p => `<span class="badge-status p-${p.status.toLowerCase()}">${esc(p.label)}</span> <strong class="me-2">${p.count}</strong>`).join('')}</div>`;
+    }
+    f('range-form').addEventListener('submit', e => { e.preventDefault(); run(); });
+    run();
+})();
+</script>
+{% endblock %}

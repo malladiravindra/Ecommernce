@@ -166,6 +166,41 @@
 {% endif %}
 
 
+{% if new_launch_products %}
+<!-- New Launches (admin-flagged) -->
+<div class="container pt-5" id="new-launches">
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+        <div>
+            <span class="badge bg-dark px-3 py-2 rounded-pill">NEW LAUNCH</span>
+            <h2 class="display-font mt-2 mb-0">Just launched</h2>
+        </div>
+        <a href="{% url 'product_list' %}?new=1" class="btn btn-outline-premium btn-sm rounded-3">See all new launches</a>
+    </div>
+    <div class="row g-4">
+        {% for product in new_launch_products|slice:":4" %}
+        <div class="col-md-6 col-lg-3">
+            <div class="card premium-card h-100 border-0">
+                <div class="card-img-container position-relative" style="height: 240px;">
+                    <span class="position-absolute top-0 start-0 m-3 badge bg-dark px-3 py-2 rounded-pill z-2">NEW LAUNCH</span>
+                    <a href="{% url 'product_detail' product.slug %}">
+                        <img src="{% if product.image %}{{ product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="card-img-top w-100 h-100 object-fit-cover" alt="{{ product.name }}">
+                    </a>
+                </div>
+                <div class="card-body p-4 d-flex flex-column">
+                    <small class="text-muted text-uppercase fw-bold mb-1" style="font-size: 10px;">{{ product.category.name }}</small>
+                    <h5 class="fw-bold mb-2"><a href="{% url 'product_detail' product.slug %}" class="text-decoration-none text-reset">{{ product.name }}</a></h5>
+                    <div class="d-flex gap-2 align-items-center mt-auto">
+                        <span class="fs-5 fw-bold" style="color: var(--accent-color);">₹{{ product.final_price }}</span>
+                        {% if product.savings %}<span class="text-muted text-decoration-line-through small">₹{{ product.price }}</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Featured Products -->
 <div class="container py-5" id="featured">
     <div class="d-flex flex-column align-items-center text-center mb-5">
@@ -179,7 +214,9 @@
         <div class="col-md-6 col-lg-3">
             <div class="card premium-card h-100 border-0">
                 <div class="card-img-container" style="height: 280px;">
-                    {% if product.discount_price %}
+                    {% if product.is_new_launch %}
+                        <span class="position-absolute top-0 start-0 m-3 badge bg-dark px-3 py-2 rounded-pill z-2">NEW LAUNCH</span>
+                    {% elif product.savings %}
                         <span class="position-absolute top-0 start-0 m-3 badge badge-glow px-3 py-2 rounded-pill z-2">Save</span>
                     {% endif %}
                     <a href="{% url 'product_detail' product.slug %}">
@@ -189,12 +226,11 @@
                 <div class="card-body p-4 d-flex flex-column">
                     <small class="text-muted text-uppercase tracking-wider fw-bold mb-1" style="font-size: 10px;">{{ product.category.name }}</small>
                     <h5 class="fw-bold mb-2"><a href="{% url 'product_detail' product.slug %}" class="text-decoration-none text-reset hover-accent">{{ product.name }}</a></h5>
+                    {% if product.offer_applied %}<small class="text-danger fw-bold mb-1"><i class="fa-solid fa-tag me-1"></i>{{ product.offer_applied.name }} · {{ product.offer_applied.label }}</small>{% endif %}
                     <div class="d-flex gap-2 align-items-center mb-3 mt-auto">
-                        {% if product.discount_price %}
-                            <span class="fs-5 fw-bold text-accent" style="color: var(--accent-color);">₹{{ product.discount_price }}</span>
+                        <span class="fs-5 fw-bold text-accent" style="color: var(--accent-color);">₹{{ product.final_price }}</span>
+                        {% if product.savings %}
                             <span class="text-muted text-decoration-line-through small">₹{{ product.price }}</span>
-                        {% else %}
-                            <span class="fs-5 fw-bold text-accent" style="color: var(--accent-color);">₹{{ product.price }}</span>
                         {% endif %}
                     </div>
                     <a href="{% url 'product_detail' product.slug %}" class="btn btn-outline-premium w-100 py-2 rounded-3">View Masterpiece</a>

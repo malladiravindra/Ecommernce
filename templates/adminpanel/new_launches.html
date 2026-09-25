@@ -1,0 +1,91 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}New Launches{% endblock %}
+{% block heading %}New Launches{% endblock %}
+
+{% block content %}
+<p class="text-muted small mb-3"><i class="fa-solid fa-circle-info me-1"></i>Products flagged here show a <strong>NEW LAUNCH</strong> badge in the store and appear in the home page "Just launched" section.</p>
+<div class="row g-3">
+    <div class="col-xl-6">
+        <div class="ap-card h-100">
+            <div class="ap-card-head"><h2>Current new launches</h2><span class="small text-muted" id="current-count"></span></div>
+            <div class="ap-table-wrap">
+                <table class="ap-table">
+                    <thead><tr><th>Product</th><th>Price</th><th>Status</th><th></th></tr></thead>
+                    <tbody id="current"><tr><td colspan="4" class="ap-loading">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="ap-card h-100">
+            <div class="ap-card-head">
+                <h2>Add products</h2>
+                <input type="search" id="f-q" class="form-control ap-search" placeholder="Search products…" aria-label="Search products">
+            </div>
+            <div class="ap-table-wrap">
+                <table class="ap-table">
+                    <thead><tr><th>Product</th><th>Price</th><th></th></tr></thead>
+                    <tbody id="candidates"><tr><td colspan="3" class="ap-loading">Loading…</td></tr></tbody>
+                </table>
+            </div>
+            <div class="ap-card-body d-flex justify-content-between align-items-center border-top" id="pager"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, money, activeBadge, thumb, toast, pagination, debounce, query } = Admin;
+    const API = '{% url "api_admin_products" %}';
+    const f = id => document.getElementById(id);
+    let page = 1;
+
+    const row = (p, action) => `
+        <tr>
+            <td><div class="d-flex align-items-center gap-2">${thumb(p.image, 36)}<span class="fw-semibold">${esc(p.name)}</span></div></td>
+            <td>${money(p.final_price)}</td>
+            ${action === 'remove' ? `<td>${activeBadge(p.is_active)}</td>` : ''}
+            <td class="text-end">
+                <button class="btn btn-sm ${action === 'remove' ? 'btn-outline-danger' : 'btn-primary'}" data-id="${p.id}" data-set="${action === 'remove' ? 'false' : 'true'}">
+                    ${action === 'remove' ? 'Remove' : 'Mark as new launch'}
+                </button>
+            </td>
+        </tr>`;
+
+    async function loadCurrent() {
+        try {
+            const data = await api(API + query({ new_launch: 1, page_size: 100 }));
+            f('current-count').textContent = `${data.count} product(s)`;
+            f('current').innerHTML = data.results.length ? data.results.map(p => row(p, 'remove')).join('')
+                : '<tr><td colspan="4" class="ap-empty"><i class="fa-solid fa-rocket"></i>No new launches yet.</td></tr>';
+        } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function loadCandidates() {
+        try {
+            const data = await api(API + query({ new_launch: 0, q: f('f-q').value.trim(), page }));
+            f('candidates').innerHTML = data.results.length ? data.results.map(p => row(p, 'add')).join('')
+                : '<tr><td colspan="3" class="ap-empty">No matching products.</td></tr>';
+            pagination(f('pager'), data, page, p => { page = p; loadCandidates(); });
+        } catch (err) { toast(err.message, 'error'); }
+    }
+
+    document.addEventListener('click', async e => {
+        const btn = e.target.closest('button[data-set]');
+        if (!btn) return;
+        btn.disabled = true;
+        try {
+            const p = await api(`${API}${btn.dataset.id}/`, { method: 'PATCH', data: { is_new_launch: btn.dataset.set === 'true' } });
+            toast(p.is_new_launch ? `${p.name} is now a new launch.` : `${p.name} removed from new launches.`);
+            loadCurrent();
+            loadCandidates();
+        } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
+    });
+    f('f-q').addEventListener('input', debounce(() => { page = 1; loadCandidates(); }));
+    loadCurrent();
+    loadCandidates();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "index.html" %}
+{% block title %}My Profile | Shopping_App{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                <div>
+                    <h1 class="display-font h2 mb-1">My profile</h1>
+                    <p class="text-muted mb-0">Update your personal details.</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'order_list' %}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-box me-1"></i> My orders</a>
+                    <a href="{% url 'shipping_address_list' %}" class="btn btn-outline-secondary btn-sm"><i class="fa-solid fa-location-dot me-1"></i> Addresses</a>
+                </div>
+            </div>
+
+            <div class="card border-0 premium-card p-4 shadow-sm bg-white mb-4" id="role-card">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width:52px;height:52px"><i class="fa-solid fa-user fs-4 text-muted"></i></div>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold" id="role-name">&nbsp;</div>
+                        <div class="small text-muted" id="role-email">&nbsp;</div>
+                    </div>
+                    <div class="text-md-end">
+                        <div class="small text-muted">Role: <strong id="role-code">—</strong> · Account Type: <strong id="role-type">—</strong></div>
+                        <span class="badge rounded-pill px-3 py-2 mt-1" id="role-badge">&nbsp;</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 premium-card p-4 p-md-5 shadow-sm bg-white">
+                <div id="profile-alert" class="alert d-none small"></div>
+                <form id="profile-form" novalidate>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted" for="username">Username</label>
+                            <input id="username" class="form-control form-control-premium py-3" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted" for="date_joined">Member since</label>
+                            <input id="date_joined" class="form-control form-control-premium py-3" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted" for="full_name">Full name *</label>
+                            <input id="full_name" class="form-control form-control-premium py-3" maxlength="150" autocomplete="name" required>
+                            <div class="invalid-feedback" data-error="full_name"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted" for="phone_number">Phone number</label>
+                            <input id="phone_number" type="tel" class="form-control form-control-premium py-3" maxlength="20" autocomplete="tel">
+                            <div class="invalid-feedback" data-error="phone_number"></div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted" for="email">Email *</label>
+                            <input id="email" type="email" class="form-control form-control-premium py-3" autocomplete="email" required>
+                            <div class="invalid-feedback" data-error="email"></div>
+                            <div class="form-text">Your email is also your login.</div>
+                        </div>
+                        <div class="col-12 d-none" id="password-wrap">
+                            <label class="form-label small fw-bold text-muted" for="current_password">Current password *</label>
+                            <input id="current_password" type="password" class="form-control form-control-premium py-3" autocomplete="current-password">
+                            <div class="invalid-feedback" data-error="current_password"></div>
+                            <div class="form-text">Required to change your email address.</div>
+                        </div>
+                    </div>
+                    <div class="mt-4 d-flex gap-2 flex-wrap">
+                        <button type="submit" id="save-btn" class="btn btn-glow px-4 py-3 rounded-3">Save changes</button>
+                        <a href="{% url 'forgot_password' %}" class="btn btn-light px-4 py-3 rounded-3 text-muted">Change password</a>
+                    </div>
+                </form>
+            </div>
+
+            <form action="{% url 'logout' %}" method="post" class="mt-4 text-center">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-link text-danger text-decoration-none"><i class="fa-solid fa-right-from-bracket me-1"></i> Log out</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const API = "{% url 'api_profile' %}";
+    const FIELDS = ['full_name', 'email', 'phone_number', 'current_password'];
+    const $ = id => document.getElementById(id);
+    const form = $('profile-form');
+    const alertBox = $('profile-alert');
+    const csrf = () => decodeURIComponent((document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '=').split('=')[1]);
+    let originalEmail = '';
+
+    function showAlert(msg, type) { alertBox.className = `alert alert-${type} small`; alertBox.textContent = msg; }
+    function fill(p) {
+        // Role comes from the server response, never from localStorage.
+        const isAdmin = p.role === 'admin';
+        $('role-name').textContent = p.full_name || p.username;
+        $('role-email').textContent = p.email;
+        $('role-code').textContent = (p.role || '').toUpperCase();
+        $('role-type').textContent = p.account_type || '';
+        $('role-badge').textContent = isAdmin ? 'You are an Admin' : 'You are a Customer';
+        $('role-badge').className = `badge rounded-pill px-3 py-2 mt-1 ${isAdmin ? 'bg-danger' : 'bg-success'}`;
+        $('username').value = p.username;
+        $('date_joined').value = new Date(p.date_joined).toLocaleDateString('en-IN', { dateStyle: 'medium' });
+        $('full_name').value = p.full_name || '';
+        $('email').value = p.email || '';
+        $('phone_number').value = p.phone_number || '';
+        originalEmail = (p.email || '').toLowerCase();
+        $('current_password').value = '';
+        $('password-wrap').classList.add('d-none');
+    }
+
+    $('email').addEventListener('input', () => {
+        $('password-wrap').classList.toggle('d-none', $('email').value.trim().toLowerCase() === originalEmail);
+    });
+
+    fetch(API, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(fill)
+        .catch(() => showAlert('Could not load your profile. Please refresh the page.', 'danger'));
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        alertBox.classList.add('d-none');
+        FIELDS.forEach(f => { $(f).classList.remove('is-invalid'); form.querySelector(`[data-error="${f}"]`).textContent = ''; });
+        const data = {
+            full_name: $('full_name').value.trim(),
+            email: $('email').value.trim(),
+            phone_number: $('phone_number').value.trim(),
+        };
+        if (!data.full_name) { $('full_name').classList.add('is-invalid'); form.querySelector('[data-error="full_name"]').textContent = 'Full name is required.'; return; }
+        if (data.email.toLowerCase() !== originalEmail) data.current_password = $('current_password').value;
+
+        const btn = $('save-btn');
+        btn.disabled = true;
+        try {
+            const res = await fetch(API, {
+                method: 'PUT', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRFToken': csrf() },
+                body: JSON.stringify(data),
+            });
+            const body = await res.json();
+            if (res.ok) { fill(body); showAlert('Profile updated.', 'success'); }
+            else {
+                let shown = false;
+                Object.entries(body).forEach(([f, msgs]) => {
+                    if (FIELDS.includes(f)) { $(f).classList.add('is-invalid'); form.querySelector(`[data-error="${f}"]`).textContent = [].concat(msgs).join(' '); shown = true; }
+                });
+                if (!shown) showAlert(body.detail || 'Could not update your profile.', 'danger');
+            }
+        } catch (err) {
+            showAlert('Could not reach the server. Check your connection and try again.', 'danger');
+        }
+        btn.disabled = false;
+    });
+})();
+</script>
+{% endblock %}

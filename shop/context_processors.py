@@ -1,5 +1,5 @@
 from .models import Cart, Wishlist
-from .rbac import get_user_role, get_role_label, get_role_color
+from .rbac import get_account_type, get_user_role, get_role_label, get_role_color
 
 
 def cart_summary(request):
@@ -25,6 +25,7 @@ def cart_summary(request):
     user_role   = get_user_role(user)
     role_label  = get_role_label(user)
     role_color  = get_role_color(user)
+    account_role, account_type = get_account_type(user)  # 'admin'/'customer', server-derived
 
     return {
         'global_cart_count':    cart_items_count,
@@ -33,5 +34,7 @@ def cart_summary(request):
         'user_role':   user_role,    # 'superadmin' | 'staff' | 'customer' | None
         'role_label':  role_label,   # Human-readable: 'Super Admin', etc.
         'role_color':  role_color,   # CSS colour token for badges
+        'account_role': account_role,  # 'admin' | 'customer' | None
+        'account_type': account_type,  # 'Administrator' | 'Customer' | None
     }
 

@@ -1,0 +1,86 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block title %}Admin{% endblock %} · Shopping_App Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'adminpanel/admin.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="ap-body">
+    {% csrf_token %}
+    <aside class="ap-sidebar" aria-label="Admin navigation">
+        <a class="ap-brand" href="{% url 'adminpanel:dashboard' %}">
+            <span class="ap-brand-mark"><i class="fa-solid fa-store"></i></span>
+            <span>Shopping_App<small>Admin Panel</small></span>
+        </a>
+        <nav class="ap-nav">
+            <div class="ap-nav-label">Overview</div>
+            <a href="{% url 'adminpanel:dashboard' %}" class="{% if active_nav == 'dashboard' %}active{% endif %}"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+            <div class="ap-nav-label">Catalogue</div>
+            <a href="{% url 'adminpanel:products' %}" class="{% if active_nav == 'products' %}active{% endif %}"><i class="fa-solid fa-box"></i> Products</a>
+            <a href="{% url 'adminpanel:new_launches' %}" class="{% if active_nav == 'new_launches' %}active{% endif %}"><i class="fa-solid fa-rocket"></i> New Launches</a>
+            <a href="{% url 'adminpanel:offers' %}" class="{% if active_nav == 'offers' %}active{% endif %}"><i class="fa-solid fa-percent"></i> Offers</a>
+            <a href="{% url 'adminpanel:categories' %}" class="{% if active_nav == 'categories' %}active{% endif %}"><i class="fa-solid fa-tags"></i> Categories</a>
+            <a href="{% url 'adminpanel:inventory' %}" class="{% if active_nav == 'inventory' %}active{% endif %}"><i class="fa-solid fa-warehouse"></i> Inventory</a>
+            <div class="ap-nav-label">Sales</div>
+            <a href="{% url 'adminpanel:orders' %}" class="{% if active_nav == 'orders' %}active{% endif %}"><i class="fa-solid fa-receipt"></i> Orders</a>
+            <a href="{% url 'adminpanel:payments' %}" class="{% if active_nav == 'payments' %}active{% endif %}"><i class="fa-solid fa-credit-card"></i> Payments</a>
+            <a href="{% url 'adminpanel:customers' %}" class="{% if active_nav == 'customers' %}active{% endif %}"><i class="fa-solid fa-users"></i> Customers</a>
+            <a href="{% url 'adminpanel:reports' %}" class="{% if active_nav == 'reports' %}active{% endif %}"><i class="fa-solid fa-chart-line"></i> Reports</a>
+            <div class="ap-nav-label">Account</div>
+            <a href="{% url 'adminpanel:profile' %}" class="{% if active_nav == 'profile' %}active{% endif %}"><i class="fa-solid fa-user-shield"></i> Profile</a>
+            <a href="{% url 'home' %}"><i class="fa-solid fa-store"></i> View store</a>
+        </nav>
+        <div class="ap-sidebar-foot">
+            <div class="ap-user">{{ request.user.get_full_name|default:request.user.username }}</div>
+            <div class="mb-2"><span class="badge bg-danger">You are an Admin</span> <span class="small">{{ account_type }}</span></div>
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-light w-100"><i class="fa-solid fa-right-from-bracket me-1"></i> Log out</button>
+            </form>
+        </div>
+    </aside>
+    <div class="ap-backdrop"></div>
+
+    <div class="ap-main">
+        <header class="ap-topbar">
+            <button class="ap-menu-btn" type="button" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+            <h1>{% block heading %}{% endblock %}</h1>
+            {% block actions %}{% endblock %}
+        </header>
+        <main class="ap-content">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} py-2">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <div class="modal fade" id="ap-confirm" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content border-0 rounded-4">
+                <div class="modal-body p-4">
+                    <h6 class="fw-bold mb-2">Please confirm</h6>
+                    <p class="ap-confirm-text text-muted mb-0"></p>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger ap-confirm-ok">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'adminpanel/admin.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

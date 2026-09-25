@@ -172,8 +172,8 @@
         let body = JSON.stringify({ email: otpEmail });
         
         if (otpFlow === 'register') {
-            url = "/api/resend-otp/";
-            body = JSON.stringify({ email: otpEmail });
+            url = "{% url 'api_resend_otp' %}";
+            body = JSON.stringify({ email: otpEmail, purpose: 'registration' });
         }
 
         try {
@@ -210,7 +210,7 @@
         let body = JSON.stringify({ email: otpEmail, otp });
 
         if (otpFlow === 'register') {
-            url = "/api/verify-otp/";
+            url = "{% url 'api_verify_registration_otp' %}";
             body = JSON.stringify({ email: otpEmail, otp });
         }
 

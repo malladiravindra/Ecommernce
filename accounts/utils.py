@@ -79,6 +79,21 @@ This OTP will expire in 5 minutes.
 Regards,
 AssetFlow Team
 """
+    elif purpose == EmailOTP.REGISTRATION:
+        subject = "AssetFlow Account Verification OTP"
+        message = f"""Hello,
+
+Your AssetFlow account verification OTP is:
+
+{otp}
+
+This OTP will expire in 5 minutes.
+
+If you did not create an account, please ignore this email.
+
+Regards,
+AssetFlow Team
+"""
     else:
         raise ValueError("Invalid OTP purpose")
 

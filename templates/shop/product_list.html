@@ -124,14 +124,18 @@
                                 <h6 class="fw-bold mb-2 fs-5 lh-base">
                                     <a href="{% url 'product_detail' product.slug %}" class="text-decoration-none text-reset">{{ product.name }}</a>
                                 </h6>
+                                {% if product.is_new_launch or product.offer_applied %}
+                                <div class="d-flex flex-wrap gap-1 mb-2">
+                                    {% if product.is_new_launch %}<span class="badge bg-dark rounded-pill">NEW LAUNCH</span>{% endif %}
+                                    {% if product.offer_applied %}<span class="badge bg-danger-subtle text-danger rounded-pill"><i class="fa-solid fa-tag me-1"></i>{{ product.offer_applied.label }}</span>{% endif %}
+                                </div>
+                                {% endif %}
                                 
                                 <div class="d-flex justify-content-between align-items-center mt-auto pt-3 border-top border-secondary border-opacity-10">
                                     <div class="d-flex gap-2 align-items-center">
-                                        {% if product.discount_price %}
-                                            <span class="fs-5 fw-bold mb-0" style="color: var(--accent-color);">₹{{ product.discount_price }}</span>
+                                        <span class="fs-5 fw-bold mb-0" style="color: var(--accent-color);">₹{{ product.final_price }}</span>
+                                        {% if product.savings %}
                                             <span class="text-muted text-decoration-line-through small mb-0">₹{{ product.price }}</span>
-                                        {% else %}
-                                            <span class="fs-5 fw-bold mb-0" style="color: var(--accent-color);">₹{{ product.price }}</span>
                                         {% endif %}
                                     </div>
                                     {% if product.stock > 0 %}

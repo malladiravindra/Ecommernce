@@ -1,0 +1,150 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Categories{% endblock %}
+{% block heading %}Categories{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="ap-card">
+            <div class="ap-card-head"><h2 id="form-title">Add category</h2></div>
+            <form class="ap-card-body" id="cat-form" novalidate>
+                <input type="hidden" id="cat-id">
+                <div class="mb-3">
+                    <label class="form-label" for="cat-name">Name *</label>
+                    <input id="cat-name" class="form-control" maxlength="100" required>
+                    <div class="invalid-feedback" data-error="name"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="cat-description">Description</label>
+                    <textarea id="cat-description" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="cat-image">Image</label>
+                    <input id="cat-image" type="file" accept="image/*" class="form-control">
+                    <div class="text-danger small mt-1" data-error="image"></div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1" id="cat-save">Add category</button>
+                    <button type="button" class="btn btn-light d-none" id="cat-cancel">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="ap-card">
+            <div class="ap-card-head"><h2>All categories</h2><span class="text-muted small" id="cat-count"></span></div>
+            <div class="ap-table-wrap">
+                <table class="ap-table">
+                    <thead><tr><th>Category</th><th>Slug</th><th>Products</th><th class="text-end">Actions</th></tr></thead>
+                    <tbody id="rows"><tr><td colspan="4" class="ap-loading">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, thumb, toast, setBusy, confirmDialog } = Admin;
+    const API = '{% url "api_admin_categories" %}';
+    const productsUrl = '{% url "adminpanel:products" %}';
+    const f = id => document.getElementById(id);
+    let byId = {};
+
+    function resetForm() {
+        f('cat-form').reset();
+        f('cat-id').value = '';
+        f('form-title').textContent = 'Add category';
+        f('cat-save').textContent = 'Add category';
+        f('cat-cancel').classList.add('d-none');
+        f('cat-name').classList.remove('is-invalid');
+        document.querySelectorAll('[data-error]').forEach(el => { el.textContent = ''; });
+    }
+
+    async function load() {
+        let cats;
+        try { cats = await api(API); } catch (err) { toast(err.message, 'error'); return; }
+        byId = Object.fromEntries(cats.map(c => [c.id, c]));
+        f('cat-count').textContent = `${cats.length} total`;
+        f('rows').innerHTML = cats.length ? cats.map(c => `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center gap-3">${thumb(c.image, 40)}
+                        <div><div class="fw-semibold">${esc(c.name)}</div><div class="small text-muted text-truncate" style="max-width:280px">${esc(c.description || '')}</div></div>
+                    </div>
+                </td>
+                <td class="text-muted">${esc(c.slug)}</td>
+                <td><a href="${productsUrl}?category=${c.id}" class="text-decoration-none fw-semibold">${c.product_count}</a></td>
+                <td class="text-end text-nowrap">
+                    <button class="btn btn-light btn-icon" data-edit="${c.id}" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-light btn-icon text-danger" data-delete="${c.id}" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+                </td>
+            </tr>`).join('') : '<tr><td colspan="4" class="ap-empty"><i class="fa-solid fa-tags"></i>No categories yet — add your first one.</td></tr>';
+    }
+
+    f('rows').addEventListener('click', async e => {
+        const edit = e.target.closest('[data-edit]');
+        const del = e.target.closest('[data-delete]');
+        if (edit) {
+            const c = byId[edit.dataset.edit];
+            f('cat-id').value = c.id;
+            f('cat-name').value = c.name;
+            f('cat-description').value = c.description || '';
+            f('form-title').textContent = `Edit “${c.name}”`;
+            f('cat-save').textContent = 'Save changes';
+            f('cat-cancel').classList.remove('d-none');
+            f('cat-name').focus();
+        }
+        if (del) {
+            const c = byId[del.dataset.delete];
+            if (!await confirmDialog(`Delete category "${c.name}"?`)) return;
+            try {
+                await api(`${API}${c.id}/`, { method: 'DELETE' });
+                toast('Category deleted.');
+                load();
+            } catch (err) { toast(err.message, 'error'); }
+        }
+    });
+
+    f('cat-cancel').addEventListener('click', resetForm);
+
+    f('cat-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        f('cat-name').classList.remove('is-invalid');
+        document.querySelectorAll('[data-error]').forEach(el => { el.textContent = ''; });
+        const name = f('cat-name').value.trim();
+        if (!name) {
+            f('cat-name').classList.add('is-invalid');
+            document.querySelector('[data-error="name"]').textContent = 'Name is required.';
+            return;
+        }
+        const data = new FormData();
+        data.append('name', name);
+        data.append('description', f('cat-description').value.trim());
+        if (f('cat-image').files[0]) data.append('image', f('cat-image').files[0]);
+        const id = f('cat-id').value;
+        const btn = f('cat-save');
+        setBusy(btn, true);
+        let saved = false;
+        try {
+            await api(id ? `${API}${id}/` : API, { method: id ? 'PATCH' : 'POST', form: data });
+            saved = true;
+        } catch (err) {
+            const body = err.body || {};
+            if (body.name) { f('cat-name').classList.add('is-invalid'); document.querySelector('[data-error="name"]').textContent = body.name.join(' '); }
+            if (body.image) document.querySelector('[data-error="image"]').textContent = body.image.join(' ');
+            if (!body.name && !body.image) toast(err.message, 'error');
+        } finally { setBusy(btn, false); }
+        if (saved) {
+            toast(id ? 'Category updated.' : 'Category added.');
+            resetForm();
+            load();
+        }
+    });
+
+    load();
+})();
+</script>
+{% endblock %}

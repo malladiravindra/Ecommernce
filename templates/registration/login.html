@@ -375,10 +375,10 @@
         alertBox.style.display = 'none';
 
         try {
-            const res = await fetch("/api/register/", {
+            const res = await fetch("{% url 'api_register' %}", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-                body: JSON.stringify({ username, email, password: pw })
+                body: JSON.stringify({ username, email, password: pw, full_name: fullName })
             });
             const data = await res.json();
 

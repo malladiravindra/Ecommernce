@@ -3,14 +3,21 @@ from django.urls import path
 from .views import (
     LoginView,
     LogoutView,
+    ProfileView,
+    RegisterView,
     RequestPasswordResetView,
     ResendOTPView,
     ResetPasswordView,
     VerifyForgotPasswordOTPView,
     VerifyLoginOTPView,
+    VerifyRegistrationOTPView,
 )
 
 urlpatterns = [
+    path("register/", RegisterView.as_view(), name="api_register"),
+    path("verify-registration-otp/", VerifyRegistrationOTPView.as_view(), name="api_verify_registration_otp"),
+    path("profile/", ProfileView.as_view(), name="api_profile"),
+
     path("login/", LoginView.as_view(), name="accounts_api_login"),
     path("verify-login-otp/", VerifyLoginOTPView.as_view(), name="api_verify_login_otp"),
     path("resend-otp/", ResendOTPView.as_view(), name="api_resend_otp"),

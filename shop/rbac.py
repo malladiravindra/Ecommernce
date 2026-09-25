@@ -21,6 +21,11 @@ from functools import wraps
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from rest_framework.permissions import BasePermission
+
+# Roles that make up the ADMIN side of the shop. Everyone else who is
+# logged in is a CUSTOMER.
+ADMIN_ROLES = ('superadmin', 'staff')
 
 
 # ─────────────────────────────────────────────────────────────
@@ -104,14 +109,67 @@ class RBACMixin(LoginRequiredMixin):
     rbac_redirect_url = 'home'  # where to send unauthorised users
 
     def dispatch(self, request, *args, **kwargs):
-        # LoginRequiredMixin handles the anonymous case
-        response = super().dispatch(request, *args, **kwargs)
-        # If the parent already redirected (anonymous), return that redirect
+        # The role must be checked BEFORE the view runs — otherwise the
+        # handler (e.g. a POST that changes data) executes for any
+        # logged-in user and only its response gets replaced.
         if not request.user.is_authenticated:
-            return response
+            return self.handle_no_permission()
 
         role = get_user_role(request.user)
         if self.allowed_roles and role not in self.allowed_roles:
             messages.error(request, "You do not have permission to access this page.")
             return redirect(self.rbac_redirect_url)
-        return response
+        return super().dispatch(request, *args, **kwargs)
+
+
+# ─────────────────────────────────────────────────────────────
+# DRF permission for APIViews
+# ─────────────────────────────────────────────────────────────
+
+class HasRole(BasePermission):
+    """DRF permission that restricts an APIView to `allowed_roles`.
+
+    Example::
+        class StaffOnlyAPI(APIView):
+            permission_classes = [HasRole]
+            allowed_roles = ['superadmin', 'staff']
+    """
+    message = "You do not have permission to perform this action."
+
+    def has_permission(self, request, view):
+        return get_user_role(request.user) in getattr(view, 'allowed_roles', [])
+
+
+class IsAdminRole(BasePermission):
+    """DRF permission: ADMIN side only (staff or super admin)."""
+    message = "Admin access required."
+
+    def has_permission(self, request, view):
+        return get_user_role(request.user) in ADMIN_ROLES
+
+
+def is_admin_user(user):
+    return get_user_role(user) in ADMIN_ROLES
+
+
+def get_account_type(user):
+    """Application-level role used by the UI: ('admin', 'Administrator') for
+    staff/super admins, ('customer', 'Customer') for everyone else logged in.
+    Always derived from the user record on the server, never from the client."""
+    if not user or not user.is_authenticated:
+        return None, None
+    if is_admin_user(user):
+        return 'admin', 'Administrator'
+    return 'customer', 'Customer'
+
+
+def user_summary(user):
+    """Safe, non-sensitive description of the signed-in user for API responses."""
+    role, account_type = get_account_type(user)
+    return {
+        'id': user.pk,
+        'name': user.get_full_name() or user.username,
+        'email': user.email,
+        'role': role,
+        'account_type': account_type,
+    }

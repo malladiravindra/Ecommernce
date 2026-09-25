@@ -1,45 +1,84 @@
 {% extends "index.html" %}
-{% block title %}My Address Records | Shopping_App{% endblock %}
+{% block title %}My Addresses | Shopping_App{% endblock %}
 
 {% block content %}
 <div class="container py-5">
-    <div class="d-flex justify-content-between align-items-center mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-5 flex-wrap gap-3">
         <div>
-            <h1 class="display-font h2 mb-1">Logistical Records</h1>
-            <p class="text-muted">Manage the destination points for order deliveries.</p>
+            <h1 class="display-font h2 mb-1">My addresses</h1>
+            <p class="text-muted mb-0">Manage where your orders are delivered.</p>
         </div>
-        <a href="{% url 'shipping_address_add' %}" class="btn btn-glow px-4 py-3 rounded-3"><i class="fa-solid fa-plus me-2"></i> Create New Record</a>
+        <a href="{% url 'shipping_address_add' %}" class="btn btn-glow px-4 py-3 rounded-3"><i class="fa-solid fa-plus me-2"></i> Add address</a>
     </div>
 
-    {% if addresses %}
-    <div class="row g-4">
-        {% for address in addresses %}
-        <div class="col-md-6 col-lg-4">
-            <div class="card premium-card border-0 p-4 shadow-sm h-100">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <span class="bg-light px-3 py-1 rounded-pill small text-muted fw-bold"><i class="fa-solid fa-location-dot me-1"></i> Address #{{ forloop.counter }}</span>
-                </div>
-                
-                <h5 class="fw-bold mb-2">{{ address.full_name }}</h5>
-                <p class="text-muted mb-1 small lh-base">{{ address.address_line1 }}</p>
-                {% if address.address_line2 %}
-                    <p class="text-muted mb-1 small lh-base">{{ address.address_line2 }}</p>
-                {% endif %}
-                <p class="text-muted mb-2 small">{{ address.city }}, {{ address.state }} - {{ address.postal_code }}</p>
-                <p class="text-dark fw-semibold mb-0 small"><i class="fa-solid fa-phone text-muted me-2"></i> {{ address.phone }}</p>
-            </div>
-        </div>
-        {% endfor %}
+    <div id="address-alert" class="alert d-none"></div>
+    <div class="row g-4" id="address-list">
+        <div class="col-12 text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Loading addresses…</div>
     </div>
-    {% else %}
-    <div class="text-center py-5 my-4">
-        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 90px; height: 90px;">
-            <i class="fa-solid fa-map-pin fs-2 text-muted"></i>
-        </div>
-        <h4 class="display-font">No Addresses Saved</h4>
-        <p class="text-muted mb-4">Save your address records for instantaneous checkout speeds later.</p>
-        <a href="{% url 'shipping_address_add' %}" class="btn btn-glow">Add a Destination Record</a>
-    </div>
-    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const API = "{% url 'api_address_list' %}";
+    const editUrl = id => "{% url 'shipping_address_edit' 0 %}".replace('/0/', `/${id}/`);
+    const list = document.getElementById('address-list');
+    const alertBox = document.getElementById('address-alert');
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const csrf = () => decodeURIComponent((document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '=').split('=')[1]);
+
+    function showAlert(msg, type = 'danger') { alertBox.className = `alert alert-${type}`; alertBox.textContent = msg; }
+
+    async function load() {
+        let addresses;
+        try {
+            const res = await fetch(API, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+            if (!res.ok) throw new Error();
+            addresses = await res.json();
+        } catch (e) {
+            list.innerHTML = '';
+            showAlert('Could not load your addresses. Please refresh the page.');
+            return;
+        }
+        if (!addresses.length) {
+            list.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width:90px;height:90px"><i class="fa-solid fa-map-pin fs-2 text-muted"></i></div>
+                    <h4 class="display-font">No addresses saved</h4>
+                    <p class="text-muted mb-4">Save an address for faster checkout.</p>
+                    <a href="{% url 'shipping_address_add' %}" class="btn btn-glow">Add an address</a>
+                </div>`;
+            return;
+        }
+        list.innerHTML = addresses.map(a => `
+            <div class="col-md-6 col-lg-4">
+                <div class="card premium-card border-0 p-4 shadow-sm h-100">
+                    <h5 class="fw-bold mb-2">${esc(a.full_name)}</h5>
+                    <p class="text-muted mb-1 small">${esc(a.address_line1)}</p>
+                    ${a.address_line2 ? `<p class="text-muted mb-1 small">${esc(a.address_line2)}</p>` : ''}
+                    <p class="text-muted mb-2 small">${esc(a.city)}, ${esc(a.state)} - ${esc(a.postal_code)}, ${esc(a.country)}</p>
+                    <p class="fw-semibold mb-3 small"><i class="fa-solid fa-phone text-muted me-2"></i>${esc(a.phone)}</p>
+                    <div class="mt-auto d-flex gap-2">
+                        <a href="${editUrl(a.id)}" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-pen me-1"></i> Edit</a>
+                        <button class="btn btn-sm btn-outline-danger" data-delete="${a.id}"><i class="fa-regular fa-trash-can me-1"></i> Delete</button>
+                    </div>
+                </div>
+            </div>`).join('');
+    }
+
+    list.addEventListener('click', async e => {
+        const btn = e.target.closest('[data-delete]');
+        if (!btn || !confirm('Delete this address? Orders already placed keep their delivery details.')) return;
+        btn.disabled = true;
+        const res = await fetch(`${API}${btn.dataset.delete}/`, {
+            method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRFToken': csrf() },
+        });
+        if (res.status === 204) { showAlert('Address deleted.', 'success'); load(); }
+        else { showAlert('Could not delete the address.'); btn.disabled = false; }
+    });
+
+    load();
+})();
+</script>
 {% endblock %}

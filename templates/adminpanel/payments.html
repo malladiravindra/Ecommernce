@@ -1,0 +1,68 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Payments{% endblock %}
+{% block heading %}Payments{% endblock %}
+
+{% block content %}
+<p class="text-muted small mb-3"><i class="fa-solid fa-lock me-1"></i>Payment and refund states are set only by backend signature verification and Razorpay webhooks — they can't be edited here. Issue refunds from the Razorpay dashboard; the status updates when Razorpay confirms.</p>
+<div class="ap-card">
+    <div class="ap-card-head">
+        <div class="ap-toolbar w-100">
+            <input type="search" id="f-q" class="form-control ap-search" placeholder="Order #, gateway ID, customer email…" aria-label="Search payments">
+            <select id="f-status" class="form-select" aria-label="Payment status">
+                <option value="">All statuses</option><option value="SUCCESS">Success</option><option value="PENDING">Pending</option>
+                <option value="FAILED">Failed</option><option value="REFUNDED">Refunded</option>
+            </select>
+            <select id="f-refund" class="form-select" aria-label="Refund">
+                <option value="">Any refund state</option><option value="REQUIRED">Refund required</option><option value="PROCESSED">Refunded</option>
+            </select>
+        </div>
+    </div>
+    <div class="ap-table-wrap">
+        <table class="ap-table">
+            <thead><tr><th>Order</th><th>Customer</th><th>Gateway order / payment</th><th>Amount</th><th>Status</th><th>Refund</th><th>Date</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="7" class="ap-loading">Loading…</td></tr></tbody>
+        </table>
+    </div>
+    <div class="ap-card-body d-flex justify-content-between align-items-center border-top" id="pager"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, money, date, paymentBadge, toast, pagination, debounce, query } = Admin;
+    const API = '{% url "api_admin_payments" %}';
+    const orderUrl = id => `{% url 'adminpanel:order_detail' 0 %}`.replace('/0/', `/${id}/`);
+    const f = id => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+    let page = 1;
+    ['q', 'status', 'refund'].forEach(k => { if (params.get(k)) f(`f-${k}`).value = params.get(k); });
+
+    const refundBadge = p => p.refund_status === 'REQUIRED'
+        ? `<span class="badge-status p-failed">Required</span><div class="small text-muted">${esc(p.refund_reason)}</div>`
+        : p.refund_status === 'PROCESSED' ? '<span class="badge-status p-refunded">Refunded</span>' : '<span class="text-muted small">—</span>';
+
+    async function load() {
+        f('rows').innerHTML = '<tr><td colspan="7" class="ap-loading">Loading…</td></tr>';
+        let data;
+        try { data = await api(API + query({ q: f('f-q').value.trim(), status: f('f-status').value, refund: f('f-refund').value, page })); }
+        catch (err) { toast(err.message, 'error'); return; }
+        f('rows').innerHTML = data.results.length ? data.results.map(p => `
+            <tr>
+                <td><a href="${orderUrl(p.order_id)}" class="fw-semibold text-decoration-none">#${p.order_id}</a><div class="small text-muted">${esc(p.order_status)}</div></td>
+                <td class="small">${esc(p.customer_email || '—')}</td>
+                <td class="small">${esc(p.provider_order_id)}<div class="text-muted">${esc(p.provider_payment_id || '—')}</div></td>
+                <td class="fw-semibold">${money(p.amount)}</td>
+                <td>${paymentBadge(p)}${p.failure_reason ? `<div class="small text-muted">${esc(p.failure_reason)}</div>` : ''}</td>
+                <td>${refundBadge(p)}</td>
+                <td class="small text-muted">${date(p.created_at)}</td>
+            </tr>`).join('') : '<tr><td colspan="7" class="ap-empty"><i class="fa-solid fa-credit-card"></i>No payments match these filters.</td></tr>';
+        pagination(f('pager'), data, page, p => { page = p; load(); });
+    }
+
+    f('f-q').addEventListener('input', debounce(() => { page = 1; load(); }));
+    ['f-status', 'f-refund'].forEach(id => f(id).addEventListener('change', () => { page = 1; load(); }));
+    load();
+})();
+</script>
+{% endblock %}

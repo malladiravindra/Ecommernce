@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Category, Product, ProductImage, Cart, CartItem, 
-    Wishlist, ShippingAddress, Order, OrderItem, Review,
+    Wishlist, ShippingAddress, Order, OrderItem, Payment, Review, Offer,
     Conversation, Message, HomeBanner
 )
 
@@ -19,9 +19,9 @@ class ProductImageInline(admin.TabularInline):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'price', 'discount_price', 'stock', 'is_active', 'featured', 'is_highlight', 'created_at')
-    list_filter = ('is_active', 'featured', 'is_highlight', 'category', 'created_at')
-    list_editable = ('price', 'discount_price', 'stock', 'is_active', 'featured', 'is_highlight')
+    list_display = ('name', 'category', 'price', 'discount_price', 'stock', 'is_active', 'featured', 'is_highlight', 'is_new_launch', 'created_at')
+    list_filter = ('is_active', 'featured', 'is_highlight', 'is_new_launch', 'category', 'created_at')
+    list_editable = ('price', 'discount_price', 'stock', 'is_active', 'featured', 'is_highlight', 'is_new_launch')
     prepopulated_fields = {'slug': ('name',)}
     search_fields = ('name', 'description')
     inlines = [ProductImageInline]
@@ -61,14 +61,46 @@ class OrderItemInline(admin.TabularInline):
     readonly_fields = ('product', 'product_name', 'price', 'quantity', 'get_subtotal')
 
 
+class PaymentInline(admin.TabularInline):
+    model = Payment
+    extra = 0
+    can_delete = False
+    readonly_fields = ('provider', 'provider_order_id', 'provider_payment_id', 'amount', 'currency', 'status', 'failure_reason', 'created_at')
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
+    # Status changes go through the admin panel workflow (/panel/orders/<id>/)
+    # so transitions are validated and stock is restored on cancellation;
+    # payment status is only ever set by backend payment verification.
     list_display = ('id', 'user', 'total_price', 'status', 'payment_status', 'created_at')
     list_filter = ('status', 'payment_status', 'created_at')
-    list_editable = ('status', 'payment_status')
     search_fields = ('id', 'user__username', 'payment_id', 'tracking_number')
-    inlines = [OrderItemInline]
-    readonly_fields = ('total_price', 'payment_id', 'created_at', 'updated_at')
+    inlines = [OrderItemInline, PaymentInline]
+    readonly_fields = (
+        'status', 'payment_status', 'subtotal', 'discount', 'delivery_charge', 'total_price',
+        'payment_id', 'razorpay_order_id', 'delivery_address', 'stock_deducted', 'created_at', 'updated_at',
+    )
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    """Read-only record of gateway payments."""
+    list_display = ('provider_order_id', 'order', 'user', 'amount', 'status', 'created_at')
+    list_filter = ('status', 'provider', 'created_at')
+    search_fields = ('provider_order_id', 'provider_payment_id', 'order__id', 'user__email')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Review)
@@ -104,3 +136,11 @@ class MessageAdmin(admin.ModelAdmin):
 class HomeBannerAdmin(admin.ModelAdmin):
     list_display = ('title', 'subtitle', 'is_active')
     list_editable = ('is_active',)
+
+
+@admin.register(Offer)
+class OfferAdmin(admin.ModelAdmin):
+    list_display = ('name', 'discount_type', 'discount_value', 'starts_at', 'ends_at', 'is_active')
+    list_filter = ('is_active', 'discount_type')
+    search_fields = ('name',)
+    filter_horizontal = ('products', 'categories')

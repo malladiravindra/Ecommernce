@@ -1,0 +1,69 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Orders{% endblock %}
+{% block heading %}Orders{% endblock %}
+
+{% block content %}
+<div class="ap-card">
+    <div class="ap-card-head">
+        <div class="ap-toolbar w-100">
+            <input type="search" id="f-q" class="form-control ap-search" placeholder="Order #, customer email, tracking no…" aria-label="Search orders">
+            <select id="f-status" class="form-select" aria-label="Status">
+                <option value="">All statuses</option>
+                {% for code, label in order_statuses %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
+            </select>
+            <select id="f-paid" class="form-select" aria-label="Payment">
+                <option value="">Paid &amp; unpaid</option><option value="1">Paid</option><option value="0">Unpaid</option>
+            </select>
+        </div>
+    </div>
+    <div class="ap-table-wrap">
+        <table class="ap-table">
+            <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Placed</th><th></th></tr></thead>
+            <tbody id="rows"><tr><td colspan="8" class="ap-loading">Loading…</td></tr></tbody>
+        </table>
+    </div>
+    <div class="ap-card-body d-flex justify-content-between align-items-center border-top" id="pager"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, money, date, statusBadge, paymentBadge, toast, pagination, debounce, query } = Admin;
+    const API = '{% url "api_admin_orders" %}';
+    const orderUrl = id => `{% url 'adminpanel:order_detail' 0 %}`.replace('/0/', `/${id}/`);
+    const f = id => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+    let page = Number(params.get('page')) || 1;
+    ['q', 'status', 'paid'].forEach(k => { if (params.get(k)) f(`f-${k}`).value = params.get(k); });
+
+    async function load() {
+        const filters = { q: f('f-q').value.trim(), status: f('f-status').value, paid: f('f-paid').value };
+        history.replaceState(null, '', location.pathname + query({ ...filters, page: page > 1 ? page : '' }));
+        f('rows').innerHTML = '<tr><td colspan="8" class="ap-loading">Loading…</td></tr>';
+        let data;
+        try { data = await api(API + query({ ...filters, page })); }
+        catch (err) {
+            if (err.status === 404 && page > 1) { page = 1; return load(); }
+            toast(err.message, 'error'); return;
+        }
+        f('rows').innerHTML = data.results.length ? data.results.map(o => `
+            <tr>
+                <td><a href="${orderUrl(o.id)}" class="fw-semibold text-decoration-none">#${o.id}</a></td>
+                <td>${esc(o.customer ? (o.customer.full_name || o.customer.username) : 'Deleted user')}<div class="small text-muted">${esc(o.customer?.email || '')}</div></td>
+                <td>${o.items.reduce((n, i) => n + i.quantity, 0)}</td>
+                <td class="fw-semibold">${money(o.total_price)}</td>
+                <td>${paymentBadge(o.payment)}</td>
+                <td>${statusBadge(o.status, o.status_display)}</td>
+                <td class="small text-muted">${date(o.created_at)}</td>
+                <td class="text-end"><a href="${orderUrl(o.id)}" class="btn btn-light btn-sm">Manage</a></td>
+            </tr>`).join('') : '<tr><td colspan="8" class="ap-empty"><i class="fa-solid fa-receipt"></i>No orders match these filters.</td></tr>';
+        pagination(f('pager'), data, page, p => { page = p; load(); });
+    }
+
+    f('f-q').addEventListener('input', debounce(() => { page = 1; load(); }));
+    ['f-status', 'f-paid'].forEach(id => f(id).addEventListener('change', () => { page = 1; load(); }));
+    load();
+})();
+</script>
+{% endblock %}

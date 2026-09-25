@@ -1,0 +1,151 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block actions %}
+<a href="{% url 'adminpanel:product_add' %}" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i> Add product</a>
+{% endblock %}
+
+{% block content %}
+<div class="ap-card mb-3"><div class="ap-card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div><div class="fw-bold fs-5">Welcome, {{ request.user.get_full_name|default:request.user.username }}</div>
+    <div class="text-muted small">Role: <strong>Administrator</strong> · <span class="badge bg-danger">You are an Admin</span></div></div>
+    <div class="small text-muted" id="payment-summary"></div>
+</div></div>
+<div class="row g-3 mb-4" id="stats">
+    {% for i in "12345678" %}
+    <div class="col-6 col-lg-3"><div class="ap-card ap-stat"><div class="ap-stat-icon skeleton"></div><div class="flex-grow-1"><div class="skeleton mb-1">Loading</div><div class="skeleton">0000</div></div></div></div>
+    {% endfor %}
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-xl-8">
+        <div class="ap-card h-100">
+            <div class="ap-card-head">
+                <h2>Recent orders</h2>
+                <a href="{% url 'adminpanel:orders' %}" class="small fw-semibold text-decoration-none">View all</a>
+            </div>
+            <div class="ap-table-wrap">
+                <table class="ap-table">
+                    <thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Payment</th><th>Status</th><th>Placed</th></tr></thead>
+                    <tbody id="recent-orders"><tr><td colspan="6" class="ap-loading">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="ap-card h-100">
+            <div class="ap-card-head"><h2>Orders by status</h2></div>
+            <div class="ap-card-body" id="status-breakdown"><div class="ap-loading">Loading…</div></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-6">
+        <div class="ap-card h-100">
+            <div class="ap-card-head">
+                <h2>Low-stock products</h2>
+                <a href="{% url 'adminpanel:inventory' %}" class="small fw-semibold text-decoration-none">Manage inventory</a>
+            </div>
+            <div class="ap-table-wrap">
+                <table class="ap-table">
+                    <thead><tr><th>Product</th><th>Category</th><th>Stock</th></tr></thead>
+                    <tbody id="low-stock"><tr><td colspan="3" class="ap-loading">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="ap-card h-100">
+            <div class="ap-card-head">
+                <h2>Recently added products</h2>
+                <a href="{% url 'adminpanel:products' %}" class="small fw-semibold text-decoration-none">All products</a>
+            </div>
+            <div class="ap-table-wrap">
+                <table class="ap-table">
+                    <thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th></tr></thead>
+                    <tbody id="recent-products"><tr><td colspan="4" class="ap-loading">Loading…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, money, date, statusBadge, paymentBadge, activeBadge, stockText, thumb, toast } = Admin;
+    const CARDS = [
+        ['total_products', 'Total products', 'fa-box', 'i-blue'],
+        ['active_products', 'Active products', 'fa-circle-check', 'i-green'],
+        ['new_launch_products', 'New launches', 'fa-rocket', 'i-violet'],
+        ['active_offers', 'Live offers', 'fa-percent', 'i-pink'],
+        ['out_of_stock_products', 'Out of stock', 'fa-triangle-exclamation', 'i-red'],
+        ['total_customers', 'Customers', 'fa-users', 'i-violet'],
+        ['total_orders', 'Total orders', 'fa-receipt', 'i-slate'],
+        ['pending_orders', 'Pending orders', 'fa-hourglass-half', 'i-amber'],
+        ['delivered_orders', 'Delivered orders', 'fa-truck', 'i-teal'],
+        ['refunds_required', 'Refunds required', 'fa-rotate-left', 'i-red'],
+        ['total_sales', 'Total sales', 'fa-indian-rupee-sign', 'i-green'],
+    ];
+    const orderUrl = id => `{% url 'adminpanel:order_detail' 0 %}`.replace('/0/', `/${id}/`);
+    const editUrl = id => `{% url 'adminpanel:product_edit' 0 %}`.replace('/0/', `/${id}/`);
+
+    async function load() {
+        let data;
+        try {
+            data = await api('{% url "api_admin_dashboard" %}');
+        } catch (err) {
+            toast(err.message, 'error');
+            return;
+        }
+        const s = data.stats;
+        document.getElementById('stats').innerHTML = CARDS.map(([key, label, icon, tone]) => `
+            <div class="col-6 col-lg-3">
+                <div class="ap-card ap-stat">
+                    <div class="ap-stat-icon ${tone}"><i class="fa-solid ${icon}"></i></div>
+                    <div>
+                        <div class="ap-stat-label">${label}</div>
+                        <div class="ap-stat-value">${key === 'total_sales' ? money(s[key]) : Number(s[key]).toLocaleString('en-IN')}</div>
+                    </div>
+                </div>
+            </div>`).join('');
+
+        document.getElementById('payment-summary').innerHTML = 'Payments: ' + data.payments_by_status.map(p => `${esc(p.label)} <strong>${p.count}</strong>`).join(' · ');
+        document.getElementById('recent-orders').innerHTML = data.recent_orders.length ? data.recent_orders.map(o => `
+            <tr>
+                <td><a href="${orderUrl(o.id)}" class="fw-semibold text-decoration-none">#${o.id}</a></td>
+                <td>${esc(o.customer ? (o.customer.full_name || o.customer.username) : 'Deleted user')}<div class="small text-muted">${esc(o.customer?.email || '')}</div></td>
+                <td class="fw-semibold">${money(o.total_price)}</td>
+                <td>${paymentBadge(o.payment)}</td>
+                <td>${statusBadge(o.status, o.status_display)}</td>
+                <td class="text-muted small">${date(o.created_at)}</td>
+            </tr>`).join('') : '<tr><td colspan="6" class="ap-empty"><i class="fa-solid fa-receipt"></i>No orders yet.</td></tr>';
+
+        const total = data.orders_by_status.reduce((sum, r) => sum + r.count, 0);
+        document.getElementById('status-breakdown').innerHTML = data.orders_by_status.map(r => `
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small mb-1"><span>${statusBadge(r.status, r.label)}</span><span class="fw-semibold">${r.count}</span></div>
+                <div class="ap-progress"><span style="width:${total ? (r.count / total * 100).toFixed(1) : 0}%"></span></div>
+            </div>`).join('');
+
+        document.getElementById('low-stock').innerHTML = data.low_stock.length ? data.low_stock.map(p => `
+            <tr>
+                <td><div class="d-flex align-items-center gap-2">${thumb(p.image, 36)}<a href="${editUrl(p.id)}" class="text-decoration-none text-reset fw-semibold">${esc(p.name)}</a></div></td>
+                <td class="text-muted">${esc(p.category_name)}</td>
+                <td>${stockText(p.stock, data.low_stock_threshold)}</td>
+            </tr>`).join('') : `<tr><td colspan="3" class="ap-empty"><i class="fa-solid fa-circle-check"></i>All products have more than ${data.low_stock_threshold} units.</td></tr>`;
+
+        document.getElementById('recent-products').innerHTML = data.recent_products.length ? data.recent_products.map(p => `
+            <tr>
+                <td><div class="d-flex align-items-center gap-2">${thumb(p.image, 36)}<a href="${editUrl(p.id)}" class="text-decoration-none text-reset fw-semibold">${esc(p.name)}</a></div></td>
+                <td>${money(p.final_price)}</td>
+                <td>${stockText(p.stock, data.low_stock_threshold)}</td>
+                <td>${activeBadge(p.is_active)}</td>
+            </tr>`).join('') : '<tr><td colspan="4" class="ap-empty"><i class="fa-solid fa-box-open"></i>No products yet.</td></tr>';
+    }
+    load();
+})();
+</script>
+{% endblock %}

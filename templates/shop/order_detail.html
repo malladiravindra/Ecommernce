@@ -1,155 +1,153 @@
 {% extends "index.html" %}
-{% block title %}Tracking Station SHOPPING_APP{{ order.id }} | Shopping_App{% endblock %}
+{% load static %}
+{% block title %}Order #{{ order.id }} | Shopping_App{% endblock %}
 
 {% block content %}
 <div class="container py-5">
-    
-    <!-- Back to orders link -->
+
     <div class="mb-4">
-        <a href="{% url 'order_list' %}" class="text-muted text-decoration-none small fw-bold"><i class="fa-solid fa-arrow-left me-2"></i> Return to Registry</a>
+        <a href="{% url 'order_list' %}" class="text-muted text-decoration-none small fw-bold"><i class="fa-solid fa-arrow-left me-2"></i> Back to my orders</a>
     </div>
 
-    <!-- Header Section -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
         <div>
-            <h1 class="display-font h2 mb-1">Logistical Tracking Station</h1>
-            <p class="text-muted mb-0">Registry Number: <span class="text-dark fw-bold">#SHOPPING_APP{{ order.id }}</span> &bull; Created: {{ order.created_at|date:"M d, Y" }}</p>
+            <h1 class="display-font h2 mb-1">Order #{{ order.id }}</h1>
+            <p class="text-muted mb-0">Placed {{ order.created_at|date:"M d, Y H:i" }}</p>
         </div>
-        <div>
-            <span class="badge badge-glow px-4 py-3 rounded-pill fs-7 fw-bold tracking-widest text-uppercase">{{ order.status }}</span>
-        </div>
+        <span class="badge badge-glow px-4 py-3 rounded-pill fs-7 fw-bold text-uppercase">{{ order.get_status_display }}</span>
     </div>
 
-    <!-- Milestones Status Progress Bar (Aesthetic Visualizer) -->
+    <div id="pay-alert" class="alert d-none rounded-4"></div>
+
+    {% if order.status == 'PENDING' and not order.payment_status %}
+    <div class="card border-0 premium-card p-4 shadow-sm bg-warning-subtle mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+                <h6 class="fw-bold mb-1"><i class="fa-solid fa-hourglass-half me-1"></i> Awaiting payment</h6>
+                <p class="small mb-0 text-muted">Your order is confirmed once the payment is completed and verified. Items are not held until then.</p>
+            </div>
+            <button type="button" id="pay-btn" class="btn btn-glow px-4 py-2 fw-bold">Pay ₹{{ order.total_price }}</button>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if order.status == 'CANCELLED' %}
+    <div class="alert alert-danger rounded-4"><i class="fa-solid fa-ban me-1"></i> This order was cancelled.{% if order.cancellation_reason %} {{ order.cancellation_reason }}{% endif %}</div>
+    {% elif order.tracking_step %}
     <div class="card border-0 premium-card p-4 p-md-5 shadow-sm bg-white mb-5">
-        <h5 class="fw-bold mb-4 display-font"><i class="fa-solid fa-route text-muted me-2"></i> Logistics Trace</h5>
-        
-        <!-- Tracker Row -->
-        <div class="position-relative py-4 d-flex justify-content-between align-items-center w-100 overflow-hidden">
-            <!-- Horizontal connecting Line -->
-            <div class="position-absolute top-50 start-0 translate-y-middle w-100 bg-light" style="height: 4px; z-index: 1;">
-                <!-- Active segment width based on order status -->
-                <div class="h-100" style="background: var(--primary-glow); width: {% if order.status == 'Pending' %}12.5%{% elif order.status == 'Processing' %}37.5%{% elif order.status == 'Shipped' %}62.5%{% elif order.status == 'Delivered' %}100%{% else %}0%{% endif %}; transition: width 1s ease-in-out;"></div>
+        <h5 class="fw-bold mb-4 display-font"><i class="fa-solid fa-route text-muted me-2"></i> Order tracking</h5>
+        <div class="position-relative py-3 d-flex justify-content-between align-items-start w-100 overflow-hidden">
+            <div class="position-absolute start-0 w-100 bg-light" style="top:38px;height:4px;z-index:1">
+                <div class="h-100" style="background:var(--primary-glow);width:{% widthratio order.tracking_step|add:'-1' 4 100 %}%;transition:width 1s ease-in-out"></div>
             </div>
-
-            <!-- Milestone 1: Pending -->
-            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
-                <div class="rounded-circle border-4 d-flex align-items-center justify-content-center mb-2" 
-                     style="width: 45px; height: 45px; background-color: {% if order.status != 'Cancelled' %}white{% else %}#f3f4f6{% endif %}; border-color: {% if order.status != 'Cancelled' %}var(--accent-color){% else %}#d1d5db{% endif %};">
-                    <i class="fa-solid fa-file-invoice-dollar {% if order.status != 'Cancelled' %}text-accent{% else %}text-muted{% endif %}" style="{% if order.status != 'Cancelled' %}color: var(--accent-color);{% endif %}"></i>
+            {% for code, label, icon in tracking_steps %}
+            {% with step=forloop.counter %}
+            <div class="d-flex flex-column align-items-center position-relative" style="z-index:2;width:20%">
+                <div class="rounded-circle border border-4 d-flex align-items-center justify-content-center mb-2"
+                     style="width:45px;height:45px;background-color:{% if order.tracking_step >= step %}var(--accent-color){% else %}#fff{% endif %};border-color:{% if order.tracking_step >= step %}var(--accent-color){% else %}#e5e7eb{% endif %} !important">
+                    <i class="fa-solid {{ icon }} {% if order.tracking_step >= step %}text-white{% else %}text-muted{% endif %}"></i>
                 </div>
-                <span class="small fw-bold text-center">Registry Confirmed</span>
+                <span class="small text-center {% if order.tracking_step >= step %}fw-bold{% else %}text-muted{% endif %}">{{ label }}</span>
             </div>
-
-            <!-- Milestone 2: Processing -->
-            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
-                <div class="rounded-circle border-4 d-flex align-items-center justify-content-center mb-2" 
-                     style="width: 45px; height: 45px; background-color: {% if order.status == 'Processing' or order.status == 'Shipped' or order.status == 'Delivered' %}var(--accent-color){% else %}white{% endif %}; border-color: {% if order.status == 'Processing' or order.status == 'Shipped' or order.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %};">
-                    <i class="fa-solid fa-box-open {% if order.status == 'Processing' or order.status == 'Shipped' or order.status == 'Delivered' %}text-white{% else %}text-muted{% endif %}"></i>
-                </div>
-                <span class="small {% if order.status == 'Processing' or order.status == 'Shipped' or order.status == 'Delivered' %}fw-bold{% else %}text-muted{% endif %} text-center">Curation Active</span>
-            </div>
-
-            <!-- Milestone 3: Shipped -->
-            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
-                <div class="rounded-circle border-4 d-flex align-items-center justify-content-center mb-2" 
-                     style="width: 45px; height: 45px; background-color: {% if order.status == 'Shipped' or order.status == 'Delivered' %}var(--accent-color){% else %}white{% endif %}; border-color: {% if order.status == 'Shipped' or order.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %};">
-                    <i class="fa-solid fa-truck-fast {% if order.status == 'Shipped' or order.status == 'Delivered' %}text-white{% else %}text-muted{% endif %}"></i>
-                </div>
-                <span class="small {% if order.status == 'Shipped' or order.status == 'Delivered' %}fw-bold{% else %}text-muted{% endif %} text-center">Transit Initiated</span>
-            </div>
-
-            <!-- Milestone 4: Delivered -->
-            <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
-                <div class="rounded-circle border-4 d-flex align-items-center justify-content-center mb-2" 
-                     style="width: 45px; height: 45px; background-color: {% if order.status == 'Delivered' %}var(--accent-color){% else %}white{% endif %}; border-color: {% if order.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %};">
-                    <i class="fa-solid fa-handshake-simple {% if order.status == 'Delivered' %}text-white{% else %}text-muted{% endif %}"></i>
-                </div>
-                <span class="small {% if order.status == 'Delivered' %}fw-bold{% else %}text-muted{% endif %} text-center">Safe Arrival</span>
-            </div>
+            {% endwith %}
+            {% endfor %}
         </div>
     </div>
+    {% endif %}
 
-    <!-- Detailed Summary Breakdown Grid -->
     <div class="row g-5">
-        <!-- Logistics Details & Shipping Info -->
         <div class="col-lg-4">
             <div class="card border-0 premium-card p-4 bg-light shadow-sm mb-4">
-                <h6 class="fw-bold text-uppercase text-muted tracking-widest mb-3" style="font-size: 11px;">Destinational Route Info</h6>
-                <h5 class="fw-bold mb-2">{{ order.shipping_address.full_name }}</h5>
-                <p class="text-muted small mb-1 lh-base">{{ order.shipping_address.address_line1 }}</p>
-                {% if order.shipping_address.address_line2 %}
-                    <p class="text-muted small mb-1 lh-base">{{ order.shipping_address.address_line2 }}</p>
-                {% endif %}
-                <p class="text-muted small mb-3">{{ order.shipping_address.city }}, {{ order.shipping_address.state }} - {{ order.shipping_address.postal_code }}</p>
-                <p class="text-dark fw-bold mb-0 small"><i class="fa-solid fa-phone text-muted me-2"></i> {{ order.shipping_address.phone }}</p>
+                <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size:11px">Delivery address</h6>
+                {% with a=order.delivery_address %}
+                <h5 class="fw-bold mb-2">{{ a.full_name }}</h5>
+                <p class="text-muted small mb-1">{{ a.address_line1 }}</p>
+                {% if a.address_line2 %}<p class="text-muted small mb-1">{{ a.address_line2 }}</p>{% endif %}
+                <p class="text-muted small mb-3">{{ a.city }}, {{ a.state }} - {{ a.postal_code }}, {{ a.country }}</p>
+                <p class="fw-bold mb-0 small"><i class="fa-solid fa-phone text-muted me-2"></i>{{ a.phone }}</p>
+                {% endwith %}
             </div>
 
             <div class="card border-0 premium-card p-4 bg-light shadow-sm">
-                <h6 class="fw-bold text-uppercase text-muted tracking-widest mb-3" style="font-size: 11px;">Transaction Metadata</h6>
-                <div class="d-flex flex-column gap-3">
-                    <div>
-                        <small class="text-muted d-block">Payment Method</small>
-                        <span class="fw-semibold"><i class="fa-brands fa-stripe text-primary fs-5 me-1 align-middle"></i> Stripe Gateway Emulator</span>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Encrypted Signature ID</small>
-                        <code class="small text-dark fw-semibold bg-white border-1 rounded px-2 py-1">{{ order.payment_id }}</code>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Transit Waybill Tracking</small>
-                        <span class="fw-bold text-uppercase text-accent" style="color: var(--accent-color);"><i class="fa-solid fa-barcode me-1"></i> {{ order.tracking_number }}</span>
-                    </div>
+                <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size:11px">Payment &amp; shipping</h6>
+                {% with payment=order.payments.first %}
+                <div class="d-flex flex-column gap-3 small">
+                    <div><span class="text-muted d-block">Payment method</span><span class="fw-semibold">Razorpay</span></div>
+                    <div><span class="text-muted d-block">Payment status</span><span class="fw-semibold">{% if payment %}{{ payment.get_status_display }}{% else %}Not paid{% endif %}</span></div>
+                    {% for p in order.payments.all %}{% if p.refund_status == 'REQUIRED' %}
+                    <div><span class="text-muted d-block">Refund</span><span class="fw-semibold text-warning">Refund pending for ₹{{ p.amount }}</span></div>
+                    {% elif p.refund_status == 'PROCESSED' %}
+                    <div><span class="text-muted d-block">Refund</span><span class="fw-semibold text-success">₹{{ p.amount }} refunded</span></div>
+                    {% endif %}{% endfor %}
+                    {% if payment.provider_payment_id %}<div><span class="text-muted d-block">Payment ID</span><code>{{ payment.provider_payment_id }}</code></div>{% endif %}
+                    <div><span class="text-muted d-block">Tracking number</span><span class="fw-semibold">{{ order.tracking_number|default:"Available once shipped" }}</span></div>
                 </div>
+                {% endwith %}
             </div>
         </div>
 
-        <!-- Itemized Inventory Receipt -->
         <div class="col-lg-8">
             <div class="card border-0 premium-card p-4 p-md-5 shadow-sm bg-white">
-                <h4 class="display-font mb-4 border-bottom pb-3">Inventory Transferred</h4>
-                
+                <h4 class="display-font mb-4 border-bottom pb-3">Items</h4>
                 <div class="d-flex flex-column gap-4 mb-4">
                     {% for item in order.items.all %}
                     <div class="d-flex align-items-center gap-4">
-                        <!-- Mini-thumbnail -->
-                        <div class="card bg-light border-0 p-1" style="width: 60px; height: 60px;">
+                        <div class="card bg-light border-0 p-1 flex-shrink-0" style="width:60px;height:60px">
                             {% if item.product and item.product.image %}
-                                <img src="{% if item.product.image %}{{ item.product.image.url }}{% else %}https://via.placeholder.com/400?text=No+Image{% endif %}" class="w-100 h-100 object-fit-cover rounded-2" alt="">
+                                <img src="{{ item.product.image.url }}" class="w-100 h-100 object-fit-cover rounded-2" alt="">
                             {% else %}
                                 <div class="w-100 h-100 d-flex align-items-center justify-content-center text-muted small"><i class="fa-solid fa-image"></i></div>
                             {% endif %}
                         </div>
-
                         <div class="flex-grow-1 text-truncate">
-                            <h6 class="fw-bold mb-1 text-truncate"><a href="{% if item.product %}{% url 'product_detail' item.product.slug %}{% else %}#{% endif %}" class="text-reset text-decoration-none">{{ item.product_name }}</a></h6>
-                            <small class="text-muted">Captured Price: ₹{{ item.price }} &bull; Units: {{ item.quantity }}</small>
+                            <h6 class="fw-bold mb-1 text-truncate">{% if item.product %}<a href="{% url 'product_detail' item.product.slug %}" class="text-reset text-decoration-none">{{ item.product_name }}</a>{% else %}{{ item.product_name }}{% endif %}</h6>
+                            <small class="text-muted">₹{{ item.price }} × {{ item.quantity }}</small>
                         </div>
-
-                        <span class="fw-bold text-dark fs-6">₹{{ item.get_subtotal }}</span>
+                        <span class="fw-bold fs-6">₹{{ item.get_subtotal }}</span>
                     </div>
                     {% endfor %}
                 </div>
 
                 <hr class="border-secondary opacity-10 my-4">
 
-                <!-- Money aggregates -->
-                <div class="d-flex flex-column gap-3 ms-auto" style="max-width: 300px;">
-                    <div class="d-flex justify-content-between text-muted small">
-                        <span>Sub-Aggregate Value</span>
-                        <span class="fw-semibold text-dark">₹{{ order.total_price }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between text-muted small">
-                        <span>Global Logistical Routing</span>
-                        <span class="text-success fw-bold">₹0.00</span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center border-top border-secondary border-opacity-10 pt-3">
-                        <span class="fw-bold text-dark">Total Invoiced Cumulative:</span>
-                        <h4 class="fw-bold mb-0" style="color: var(--accent-color);">₹{{ order.total_price }}</h4>
+                <div class="d-flex flex-column gap-2 ms-auto small" style="max-width:300px">
+                    <div class="d-flex justify-content-between text-muted"><span>Subtotal</span><span class="text-dark">₹{{ order.subtotal }}</span></div>
+                    <div class="d-flex justify-content-between text-muted"><span>Discount</span><span class="text-success">− ₹{{ order.discount }}</span></div>
+                    <div class="d-flex justify-content-between text-muted"><span>Delivery</span><span class="text-dark">{% if order.delivery_charge %}₹{{ order.delivery_charge }}{% else %}Free{% endif %}</span></div>
+                    <div class="d-flex justify-content-between align-items-center border-top pt-3">
+                        <span class="fw-bold text-dark">Total</span>
+                        <h4 class="fw-bold mb-0" style="color:var(--accent-color)">₹{{ order.total_price }}</h4>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if order.status == 'PENDING' and not order.payment_status %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="{% static 'js/payments.js' %}"></script>
+<script>
+(() => {
+    const btn = document.getElementById('pay-btn');
+    const alertBox = document.getElementById('pay-alert');
+    const label = btn.innerHTML;
+    const show = (msg, type = 'danger') => { alertBox.className = `alert alert-${type} rounded-4`; alertBox.textContent = msg; };
+    const busy = text => { btn.disabled = true; btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${text}`; };
+    const reset = () => { btn.disabled = false; btn.innerHTML = label; };
+    btn.addEventListener('click', () => {
+        alertBox.classList.add('d-none');
+        ShopPayments.payForOrder({{ order.id }}, {
+            urls: { create: "{% url 'api_payment_create' %}", verify: "{% url 'api_payment_verify' %}" },
+            onStatus: busy,
+            onSuccess: order => { window.location.href = "{% url 'order_confirmation' order.id %}"; },
+            onError: msg => { show(msg); reset(); },
+            onDismiss: () => { show('Payment was not completed.', 'warning'); reset(); },
+        }).catch(() => { show('Could not reach the payment gateway.'); reset(); });
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

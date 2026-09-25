@@ -33,17 +33,18 @@ urlpatterns = [
 
     # Checkout & Addresses UI
     path('addresses/', views.ShippingAddressListView.as_view(), name='shipping_address_list'),
-    path('addresses/add/', views.ShippingAddressCreateView.as_view(), name='shipping_address_add'),
+    path('addresses/add/', views.ShippingAddressFormView.as_view(), name='shipping_address_add'),
+    path('addresses/<int:pk>/edit/', views.ShippingAddressFormView.as_view(), name='shipping_address_edit'),
     path('checkout/', views.CheckoutView.as_view(), name='checkout'),
-    path('checkout/verify/', views.verify_payment_view, name='checkout_verify'),
     
     # Orders UI
     path('orders/', views.OrderListView.as_view(), name='order_list'),
     path('orders/<int:pk>/', views.OrderDetailView.as_view(), name='order_detail'),
+    path('orders/<int:pk>/confirmation/', views.OrderConfirmationView.as_view(), name='order_confirmation'),
+    path('profile/', views.ProfilePageView.as_view(), name='profile'),
     
     # Admin Custom Dashboard
     path('admin-dashboard/', views.AdminDashboardView.as_view(), name='admin_dashboard'),
-    path('user-management/', views.UserManagementView.as_view(), name='user_management'),
 
     # Chat/Messaging
     path('chat/', views.ConversationListView.as_view(), name='conversation_list'),
@@ -57,12 +58,19 @@ urlpatterns = [
     path('api/products/', api_views.ProductListAPIView.as_view(), name='api_product_list'),
     path('api/products/<int:pk>/', api_views.ProductDetailAPIView.as_view(), name='api_product_detail'),
     path('api/categories/', api_views.CategoryListAPIView.as_view(), name='api_category_list'),
+    path('api/offers/', api_views.OfferListAPIView.as_view(), name='api_offer_list'),
     path('api/categories/<int:pk>/', api_views.CategoryDetailAPIView.as_view(), name='api_category_detail'),
     path('api/cart/', api_views.CartDetailAPIView.as_view(), name='api_cart_detail'),
     path('api/wishlist/', api_views.WishlistListCreateAPIView.as_view(), name='api_wishlist_list_create'),
     path('api/wishlist/<int:pk>/', api_views.WishlistDestroyAPIView.as_view(), name='api_wishlist_remove'),
     path('api/reviews/', api_views.ReviewListCreateAPIView.as_view(), name='api_review_list_create'),
-    path('api/orders/', api_views.OrderListAPIView.as_view(), name='api_order_list'),
+    path('api/orders/', api_views.OrderListCreateAPIView.as_view(), name='api_order_list'),
+    path('api/orders/<int:pk>/', api_views.OrderDetailAPIView.as_view(), name='api_order_detail'),
+    path('api/addresses/', api_views.AddressListCreateAPIView.as_view(), name='api_address_list'),
+    path('api/addresses/<int:pk>/', api_views.AddressDetailAPIView.as_view(), name='api_address_detail'),
+    path('api/payments/create/', api_views.PaymentCreateAPIView.as_view(), name='api_payment_create'),
+    path('api/payments/verify/', api_views.PaymentVerifyAPIView.as_view(), name='api_payment_verify'),
+    path('api/payments/webhook/', api_views.RazorpayWebhookAPIView.as_view(), name='api_payment_webhook'),
     path('api/token/session/', api_views.SessionTokenObtainView.as_view(), name='api_token_session'),
     path('api/soap/', soap_application, name='api_soap'),
 ]

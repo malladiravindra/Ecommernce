@@ -1,0 +1,153 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Order #{{ view.kwargs.pk }}{% endblock %}
+{% block heading %}Order #{{ view.kwargs.pk }}{% endblock %}
+{% block actions %}
+<a href="{% url 'adminpanel:orders' %}" class="btn btn-light btn-sm"><i class="fa-solid fa-arrow-left me-1"></i> All orders</a>
+{% endblock %}
+
+{% block content %}
+<div id="order-root"><div class="ap-loading">Loading order…</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, money, date, statusBadge, paymentBadge, toast, setBusy, confirmDialog } = Admin;
+    const API = `{% url 'api_admin_order_detail' view.kwargs.pk %}`;
+    const STATUS_API = `{% url 'api_admin_order_status' view.kwargs.pk %}`;
+    const LABELS = { {% for code, label in order_statuses %}'{{ code }}': '{{ label }}',{% endfor %} };
+    const STEPS = [['CONFIRMED', 'fa-check'], ['PROCESSING', 'fa-box-open'], ['SHIPPED', 'fa-truck-fast'], ['OUT_FOR_DELIVERY', 'fa-motorcycle'], ['DELIVERED', 'fa-house-circle-check']];
+    const root = document.getElementById('order-root');
+
+    function render(o) {
+        const a = o.delivery_address || {};
+        const transitions = o.allowed_transitions;
+        root.innerHTML = `
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            ${statusBadge(o.status, o.status_display)} ${paymentBadge(o.payment)}
+            <span class="text-muted small ms-1">Placed ${date(o.created_at)} · Updated ${date(o.updated_at)}</span>
+        </div>
+        ${o.cancellation_reason ? `<div class="alert alert-warning py-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>${esc(o.cancellation_reason)}</div>` : ''}
+
+        <div class="ap-card mb-3"><div class="ap-card-body">
+            ${o.status === 'CANCELLED' ? '<div class="text-center text-danger fw-semibold"><i class="fa-solid fa-ban me-1"></i> This order was cancelled.</div>'
+              : o.status === 'PENDING' ? '<div class="text-center text-muted"><i class="fa-solid fa-hourglass-half me-1"></i> Awaiting payment — the order is confirmed automatically once the payment is verified.</div>'
+              : `<div class="ap-steps">${STEPS.map(([code, icon], i) => `
+                    <div class="ap-step ${o.tracking_step > i ? 'done' : ''}"><div class="dot"><i class="fa-solid ${icon}"></i></div>${LABELS[code]}</div>`).join('')}</div>`}
+        </div></div>
+
+        <div class="row g-3">
+            <div class="col-xl-8">
+                <div class="ap-card mb-3">
+                    <div class="ap-card-head"><h2>Items</h2></div>
+                    <div class="ap-table-wrap"><table class="ap-table">
+                        <thead><tr><th>Product</th><th>Unit price</th><th>Qty</th><th class="text-end">Subtotal</th></tr></thead>
+                        <tbody>${o.items.map(i => `<tr>
+                            <td class="fw-semibold">${esc(i.product_name)}${i.product ? '' : ' <span class="small text-muted">(product deleted)</span>'}</td>
+                            <td>${money(i.price)}</td><td>${i.quantity}</td><td class="text-end">${money(i.subtotal)}</td></tr>`).join('')}</tbody>
+                    </table></div>
+                    <div class="ap-card-body border-top">
+                        <div class="ms-auto" style="max-width:320px">
+                            <div class="d-flex justify-content-between mb-1"><span class="text-muted">Subtotal</span><span>${money(o.subtotal)}</span></div>
+                            <div class="d-flex justify-content-between mb-1"><span class="text-muted">Discount</span><span class="text-success">− ${money(o.discount)}</span></div>
+                            <div class="d-flex justify-content-between mb-2"><span class="text-muted">Delivery</span><span>${Number(o.delivery_charge) ? money(o.delivery_charge) : 'Free'}</span></div>
+                            <div class="d-flex justify-content-between fw-bold fs-6 border-top pt-2"><span>Total</span><span>${money(o.total_price)}</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ap-card">
+                    <div class="ap-card-head"><h2>Payments</h2><span class="small text-muted">Recorded by the payment gateway — read only</span></div>
+                    <div class="ap-table-wrap"><table class="ap-table">
+                        <thead><tr><th>Gateway order</th><th>Payment ID</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+                        <tbody>${o.payments.length ? o.payments.map(p => `<tr>
+                            <td class="small">${esc(p.provider_order_id)}</td><td class="small">${esc(p.provider_payment_id || '—')}</td>
+                            <td>${money(p.amount)}</td><td>${paymentBadge(p)}${p.failure_reason ? `<div class="small text-muted">${esc(p.failure_reason)}</div>` : ''}
+                                ${p.refund_status === 'REQUIRED' ? `<div class="mt-1"><span class="badge-status p-failed">Refund required</span><div class="small text-muted">${esc(p.refund_reason)} Issue it from the Razorpay dashboard; the status updates when Razorpay confirms.</div></div>` : ''}
+                                ${p.refund_status === 'PROCESSED' ? '<div class="mt-1"><span class="badge-status p-refunded">Refunded</span></div>' : ''}</td>
+                            <td class="small text-muted">${date(p.created_at)}</td></tr>`).join('')
+                            : '<tr><td colspan="5" class="ap-empty">No payment attempts yet.</td></tr>'}</tbody>
+                    </table></div>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <div class="ap-card mb-3">
+                    <div class="ap-card-head"><h2>Update status</h2></div>
+                    <div class="ap-card-body">
+                        ${transitions.length ? `
+                        <form id="status-form" novalidate>
+                            <label class="form-label" for="new-status">New status</label>
+                            <select id="new-status" class="form-select mb-3">${transitions.map(t => `<option value="${t}">${LABELS[t]}</option>`).join('')}</select>
+                            <div id="tracking-wrap" class="mb-3">
+                                <label class="form-label" for="tracking">Tracking number</label>
+                                <input id="tracking" class="form-control" maxlength="100" value="${esc(o.tracking_number || '')}">
+                            </div>
+                            <div id="reason-wrap" class="mb-3 d-none">
+                                <label class="form-label" for="reason">Cancellation reason</label>
+                                <input id="reason" class="form-control" maxlength="200" placeholder="e.g. Customer request">
+                                <div class="form-text">${o.payment_status ? 'This order is paid — cancelling restores stock and flags it for a refund.' : 'This order is unpaid.'}</div>
+                            </div>
+                            <button class="btn btn-primary w-100" id="status-save">Update status</button>
+                        </form>` : `<p class="text-muted mb-0">${o.status === 'PENDING' ? '' : 'No further status changes are possible.'}</p>`}
+                    </div>
+                </div>
+
+                <div class="ap-card mb-3">
+                    <div class="ap-card-head"><h2>Customer</h2></div>
+                    <div class="ap-card-body">
+                        ${o.customer ? `<div class="fw-semibold">${esc(o.customer.full_name || o.customer.username)}</div><div class="text-muted small">${esc(o.customer.email)}</div>` : '<span class="text-muted">Deleted user</span>'}
+                    </div>
+                </div>
+
+                <div class="ap-card">
+                    <div class="ap-card-head"><h2>Delivery address</h2></div>
+                    <div class="ap-card-body">
+                        <div class="fw-semibold">${esc(a.full_name || '')}</div>
+                        <div>${esc(a.address_line1 || '')}</div>
+                        ${a.address_line2 ? `<div>${esc(a.address_line2)}</div>` : ''}
+                        <div>${esc([a.city, a.state].filter(Boolean).join(', '))} ${esc(a.postal_code || '')}</div>
+                        <div>${esc(a.country || '')}</div>
+                        <div class="mt-2"><i class="fa-solid fa-phone me-1 text-muted"></i>${esc(a.phone || '—')}</div>
+                        <div class="mt-2 small text-muted">Tracking: ${esc(o.tracking_number || '—')}</div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        const form = document.getElementById('status-form');
+        if (!form) return;
+        const sel = document.getElementById('new-status');
+        const sync = () => {
+            document.getElementById('reason-wrap').classList.toggle('d-none', sel.value !== 'CANCELLED');
+            document.getElementById('tracking-wrap').classList.toggle('d-none', sel.value === 'CANCELLED');
+        };
+        sel.addEventListener('change', sync);
+        sync();
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+            const status = sel.value;
+            if (status === 'CANCELLED' && !await confirmDialog(`Cancel order #${o.id}?${o.stock_deducted ? ' Its stock will be restored.' : ''}`, 'Cancel order')) return;
+            const btn = document.getElementById('status-save');
+            setBusy(btn, true, 'Updating…');
+            try {
+                const updated = await api(STATUS_API, { method: 'PUT', data: {
+                    status,
+                    tracking_number: document.getElementById('tracking').value.trim(),
+                    reason: document.getElementById('reason').value.trim(),
+                } });
+                toast(`Order marked ${updated.status_display}.`);
+                render(updated);
+            } catch (err) {
+                toast(err.message, 'error');
+                setBusy(btn, false);
+            }
+        });
+    }
+
+    api(API).then(render).catch(err => {
+        root.innerHTML = `<div class="ap-card ap-empty"><i class="fa-solid fa-circle-exclamation"></i>${esc(err.status === 404 ? 'Order not found.' : err.message)}</div>`;
+    });
+})();
+</script>
+{% endblock %}

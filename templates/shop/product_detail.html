@@ -53,6 +53,7 @@
             <div class="ps-lg-4 d-flex flex-column h-100">
                 <div class="mb-3">
                     <span class="badge badge-glow px-3 py-2 rounded-pill text-uppercase fs-8">{{ product.category.name }}</span>
+                    {% if product.is_new_launch %}<span class="badge bg-dark px-3 py-2 rounded-pill ms-2 fs-8">NEW LAUNCH</span>{% endif %}
                     {% if product.stock > 0 %}
                         <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill border-0 ms-2 fs-8">In Stock ({{ product.stock }} left)</span>
                     {% else %}
@@ -76,12 +77,15 @@
                 </div>
 
                 <div class="mb-4">
-                    {% if product.discount_price %}
+                    {% if product.savings %}
                         <div class="d-flex align-items-end gap-3 mb-1">
-                            <h2 class="display-6 fw-bold text-accent mb-0" style="color: var(--accent-color);">₹{{ product.discount_price }}</h2>
+                            <h2 class="display-6 fw-bold text-accent mb-0" style="color: var(--accent-color);">₹{{ product.final_price }}</h2>
                             <h4 class="text-muted text-decoration-line-through mb-1 fw-normal">₹{{ product.price }}</h4>
                         </div>
-                        <span class="text-success fw-bold small">You save ₹{{ product.price|floatformat:2|add:"-"|add:product.discount_price|floatformat:2|cut:"-" }} today!</span>
+                        <span class="text-success fw-bold small">You save ₹{{ product.savings }} today!</span>
+                        {% if product.offer_applied %}
+                        <div class="small text-danger fw-semibold mt-1"><i class="fa-solid fa-tag me-1"></i>{{ product.offer_applied.name }} · {{ product.offer_applied.label }}{% if product.offer_applied.ends_at %} · ends {{ product.offer_applied.ends_at|date:"M d, Y" }}{% endif %}</div>
+                        {% endif %}
                     {% else %}
                         <h2 class="display-6 fw-bold mb-0" style="color: var(--accent-color);">₹{{ product.price }}</h2>
                     {% endif %}

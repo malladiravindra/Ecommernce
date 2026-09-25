@@ -1,0 +1,252 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Offers{% endblock %}
+{% block heading %}Offers{% endblock %}
+{% block actions %}
+<button class="btn btn-primary btn-sm" id="new-offer"><i class="fa-solid fa-plus me-1"></i> New offer</button>
+{% endblock %}
+
+{% block content %}
+<p class="text-muted small mb-3"><i class="fa-solid fa-circle-info me-1"></i>A live offer lowers the selling price of its products/categories everywhere — store, cart, checkout and the payment amount. If a product also has a discount price, the customer gets whichever is lower (offers don't stack). Placed orders keep the price they were bought at.</p>
+<div class="ap-card">
+    <div class="ap-card-head">
+        <div class="ap-toolbar w-100">
+            <input type="search" id="f-q" class="form-control ap-search" placeholder="Search offers…" aria-label="Search offers">
+            <select id="f-state" class="form-select" aria-label="State">
+                <option value="">All offers</option><option value="live">Live now</option><option value="scheduled">Scheduled</option>
+                <option value="expired">Expired</option><option value="inactive">Deactivated</option>
+            </select>
+        </div>
+    </div>
+    <div class="ap-table-wrap">
+        <table class="ap-table">
+            <thead><tr><th>Offer</th><th>Discount</th><th>Applies to</th><th>Schedule</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="6" class="ap-loading">Loading…</td></tr></tbody>
+        </table>
+    </div>
+    <div class="ap-card-body d-flex justify-content-between align-items-center border-top" id="pager"></div>
+</div>
+
+<div class="modal fade" id="offer-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <form class="modal-content border-0 rounded-4" id="offer-form" novalidate>
+            <div class="modal-header"><h5 class="modal-title fw-bold" id="offer-title">New offer</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <div class="alert alert-danger small d-none" id="offer-error"></div>
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label" for="o-name">Name *</label>
+                        <input id="o-name" class="form-control" maxlength="120" required>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="o-active" checked>
+                            <label class="form-check-label" for="o-active">Active</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="o-description">Description</label>
+                        <textarea id="o-description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="o-type">Discount type *</label>
+                        <select id="o-type" class="form-select"><option value="PERCENT">Percentage off</option><option value="FLAT">Flat amount off (₹)</option></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="o-value">Discount value *</label>
+                        <input id="o-value" type="number" min="0.01" step="0.01" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="o-start">Starts</label>
+                        <input id="o-start" type="datetime-local" class="form-control">
+                        <div class="form-text">Leave empty to start immediately.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="o-end">Ends</label>
+                        <input id="o-end" type="datetime-local" class="form-control">
+                        <div class="form-text">Leave empty for no end date.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Categories</label>
+                        <div id="o-categories" class="border rounded-3 p-2" style="max-height:180px;overflow:auto"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="o-product-search">Products</label>
+                        <input id="o-product-search" type="search" class="form-control form-control-sm mb-2" placeholder="Search products to add…">
+                        <div id="o-product-results" class="list-group small mb-2"></div>
+                        <div id="o-products" class="d-flex flex-wrap gap-1"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="o-save">Save offer</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, date, toast, pagination, debounce, query, setBusy, confirmDialog, errorMessage } = Admin;
+    const API = '{% url "api_admin_offers" %}';
+    const PRODUCTS_API = '{% url "api_admin_products" %}';
+    const f = id => document.getElementById(id);
+    const modal = () => bootstrap.Modal.getOrCreateInstance(f('offer-modal'));
+    let page = 1, rows = {}, editing = null, chosenProducts = new Map();
+
+    const toLocalInput = iso => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    };
+    const fromLocalInput = v => v ? new Date(v).toISOString() : null;
+    function stateBadge(o) {
+        const now = new Date();
+        if (!o.is_active) return '<span class="badge-status b-inactive">Deactivated</span>';
+        if (o.ends_at && new Date(o.ends_at) <= now) return '<span class="badge-status s-cancelled">Expired</span>';
+        if (o.starts_at && new Date(o.starts_at) > now) return '<span class="badge-status s-processing">Scheduled</span>';
+        return '<span class="badge-status s-delivered">Live</span>';
+    }
+
+    async function load() {
+        f('rows').innerHTML = '<tr><td colspan="6" class="ap-loading">Loading…</td></tr>';
+        let data;
+        try { data = await api(API + query({ q: f('f-q').value.trim(), state: f('f-state').value, page })); }
+        catch (err) { toast(err.message, 'error'); return; }
+        rows = Object.fromEntries(data.results.map(o => [o.id, o]));
+        f('rows').innerHTML = data.results.length ? data.results.map(o => `
+            <tr>
+                <td><div class="fw-semibold">${esc(o.name)}</div><div class="small text-muted">${esc(o.description || '')}</div></td>
+                <td class="fw-semibold">${esc(o.label)}</td>
+                <td class="small">${[...o.category_names.map(n => `<span class="badge bg-light text-dark border me-1">${esc(n)}</span>`),
+                                      ...o.product_names.slice(0, 4).map(n => `<span class="badge bg-light text-secondary border me-1">${esc(n)}</span>`)].join('')}
+                    ${o.product_names.length > 4 ? `<span class="text-muted">+${o.product_names.length - 4} more</span>` : ''}</td>
+                <td class="small text-muted">${o.starts_at ? date(o.starts_at) : 'Now'} → ${o.ends_at ? date(o.ends_at) : 'No end'}</td>
+                <td>${stateBadge(o)}</td>
+                <td class="text-end text-nowrap">
+                    <div class="form-check form-switch d-inline-block align-middle me-1" title="Activate / deactivate">
+                        <input class="form-check-input" type="checkbox" role="switch" data-toggle="${o.id}" ${o.is_active ? 'checked' : ''} aria-label="Active">
+                    </div>
+                    <button class="btn btn-light btn-icon" data-edit="${o.id}" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-light btn-icon text-danger" data-delete="${o.id}" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+                </td>
+            </tr>`).join('') : '<tr><td colspan="6" class="ap-empty"><i class="fa-solid fa-percent"></i>No offers yet.</td></tr>';
+        pagination(f('pager'), data, page, p => { page = p; load(); });
+    }
+
+    async function loadCategories() {
+        const cats = await api('{% url "api_admin_categories" %}');
+        f('o-categories').innerHTML = cats.length ? cats.map(c => `
+            <div class="form-check"><input class="form-check-input" type="checkbox" value="${c.id}" id="oc-${c.id}">
+            <label class="form-check-label" for="oc-${c.id}">${esc(c.name)} <span class="text-muted small">(${c.product_count})</span></label></div>`).join('')
+            : '<div class="small text-muted">No categories.</div>';
+    }
+
+    function renderChosen() {
+        f('o-products').innerHTML = [...chosenProducts].map(([id, name]) =>
+            `<span class="badge bg-primary-subtle text-primary border d-inline-flex align-items-center gap-1">${esc(name)}
+             <button type="button" class="btn-close btn-close-sm" style="font-size:8px" data-unpick="${id}" aria-label="Remove"></button></span>`).join('')
+            || '<span class="small text-muted">No products selected.</span>';
+    }
+
+    function openForm(o) {
+        editing = o ? o.id : null;
+        f('offer-form').reset();
+        f('offer-error').classList.add('d-none');
+        f('offer-title').textContent = o ? `Edit “${o.name}”` : 'New offer';
+        f('o-name').value = o?.name || '';
+        f('o-description').value = o?.description || '';
+        f('o-type').value = o?.discount_type || 'PERCENT';
+        f('o-value').value = o?.discount_value || '';
+        f('o-start').value = toLocalInput(o?.starts_at);
+        f('o-end').value = toLocalInput(o?.ends_at);
+        f('o-active').checked = o ? o.is_active : true;
+        f('o-categories').querySelectorAll('input').forEach(i => { i.checked = !!o && o.categories.includes(Number(i.value)); });
+        chosenProducts = new Map(o ? o.products.map((id, i) => [id, o.product_names[i] || `#${id}`]) : []);
+        f('o-product-results').innerHTML = '';
+        renderChosen();
+        modal().show();
+    }
+
+    f('o-product-search').addEventListener('input', debounce(async () => {
+        const q = f('o-product-search').value.trim();
+        if (!q) { f('o-product-results').innerHTML = ''; return; }
+        try {
+            const data = await api(PRODUCTS_API + query({ q, page_size: 8 }));
+            f('o-product-results').innerHTML = data.results.map(p =>
+                `<button type="button" class="list-group-item list-group-item-action py-1" data-pick="${p.id}" data-name="${esc(p.name)}">${esc(p.name)} <span class="text-muted">₹${esc(p.price)}</span></button>`).join('')
+                || '<div class="small text-muted">No matches.</div>';
+        } catch (err) { toast(err.message, 'error'); }
+    }));
+    f('offer-modal').addEventListener('click', e => {
+        const pick = e.target.closest('[data-pick]');
+        const unpick = e.target.closest('[data-unpick]');
+        if (pick) { chosenProducts.set(Number(pick.dataset.pick), pick.dataset.name); renderChosen(); }
+        if (unpick) { chosenProducts.delete(Number(unpick.dataset.unpick)); renderChosen(); }
+    });
+
+    f('offer-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        const errBox = f('offer-error');
+        errBox.classList.add('d-none');
+        const payload = {
+            name: f('o-name').value.trim(),
+            description: f('o-description').value.trim(),
+            discount_type: f('o-type').value,
+            discount_value: f('o-value').value,
+            starts_at: fromLocalInput(f('o-start').value),
+            ends_at: fromLocalInput(f('o-end').value),
+            is_active: f('o-active').checked,
+            categories: [...f('o-categories').querySelectorAll('input:checked')].map(i => Number(i.value)),
+            products: [...chosenProducts.keys()],
+        };
+        if (!payload.name || !payload.discount_value) {
+            errBox.textContent = 'Name and discount value are required.';
+            errBox.classList.remove('d-none');
+            return;
+        }
+        const btn = f('o-save');
+        setBusy(btn, true);
+        try {
+            await api(editing ? `${API}${editing}/` : API, { method: editing ? 'PUT' : 'POST', data: payload });
+            modal().hide();
+            toast(editing ? 'Offer updated.' : 'Offer created.');
+            load();
+        } catch (err) {
+            errBox.textContent = errorMessage(err.body, err.status);
+            errBox.classList.remove('d-none');
+        } finally { setBusy(btn, false); }
+    });
+
+    f('rows').addEventListener('click', async e => {
+        const edit = e.target.closest('[data-edit]');
+        const del = e.target.closest('[data-delete]');
+        if (edit) openForm(rows[edit.dataset.edit]);
+        if (del) {
+            const o = rows[del.dataset.delete];
+            if (!await confirmDialog(`Delete offer "${o.name}"? Orders already placed keep their prices.`)) return;
+            try { await api(`${API}${o.id}/`, { method: 'DELETE' }); toast('Offer deleted.'); load(); }
+            catch (err) { toast(err.message, 'error'); }
+        }
+    });
+    f('rows').addEventListener('change', async e => {
+        const t = e.target.closest('[data-toggle]');
+        if (!t) return;
+        t.disabled = true;
+        try {
+            await api(`${API}${t.dataset.toggle}/`, { method: 'PATCH', data: { is_active: t.checked } });
+            toast(t.checked ? 'Offer activated.' : 'Offer deactivated.');
+            load();
+        } catch (err) { t.checked = !t.checked; toast(err.message, 'error'); t.disabled = false; }
+    });
+
+    f('new-offer').addEventListener('click', () => openForm(null));
+    f('f-q').addEventListener('input', debounce(() => { page = 1; load(); }));
+    f('f-state').addEventListener('change', () => { page = 1; load(); });
+    loadCategories().catch(err => toast(err.message, 'error'));
+    load();
+})();
+</script>
+{% endblock %}

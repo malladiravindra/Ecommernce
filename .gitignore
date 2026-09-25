@@ -6,3 +6,4 @@ git_log_history.txt
 test_run_output.txt
 test_output.txt
 .env
+staticfiles/

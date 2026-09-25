@@ -30,7 +30,7 @@
                             </div>
                             <div>
                                 <span class="text-uppercase text-muted fw-bold d-block mb-1" style="font-size: 10px; letter-spacing: 0.5px;">Ship To</span>
-                                <span class="fw-semibold text-dark" style="font-size: 14px;">{{ o.shipping_address.full_name|default:user.username }}</span>
+                                <span class="fw-semibold text-dark" style="font-size: 14px;">{{ o.delivery_address.full_name|default:user.username }}</span>
                             </div>
                         </div>
                         <div class="text-md-end mt-2 mt-md-0">
@@ -45,16 +45,16 @@
                             <div>
                                 <h5 class="fw-bold mb-1" style="font-size: 16px;">
                                     Status: 
-                                    {% if o.status == 'Processing' %}
-                                        <span class="text-warning"><i class="fa-solid fa-rotate me-1"></i> {{ o.status }}</span>
-                                    {% elif o.status == 'Shipped' %}
-                                        <span class="text-info"><i class="fa-solid fa-truck me-1"></i> {{ o.status }}</span>
-                                    {% elif o.status == 'Delivered' %}
-                                        <span class="text-success"><i class="fa-solid fa-circle-check me-1"></i> {{ o.status }}</span>
-                                    {% elif o.status == 'Cancelled' %}
-                                        <span class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i> {{ o.status }}</span>
+                                    {% if o.status == 'CANCELLED' %}
+                                        <span class="text-danger"><i class="fa-solid fa-circle-xmark me-1"></i> {{ o.get_status_display }}</span>
+                                    {% elif o.status == 'DELIVERED' %}
+                                        <span class="text-success"><i class="fa-solid fa-circle-check me-1"></i> {{ o.get_status_display }}</span>
+                                    {% elif o.status == 'SHIPPED' or o.status == 'OUT_FOR_DELIVERY' %}
+                                        <span class="text-info"><i class="fa-solid fa-truck me-1"></i> {{ o.get_status_display }}</span>
+                                    {% elif o.status == 'PENDING' %}
+                                        <span class="text-secondary"><i class="fa-solid fa-hourglass-half me-1"></i> Awaiting payment</span>
                                     {% else %}
-                                        <span class="text-secondary">{{ o.status }}</span>
+                                        <span class="text-warning"><i class="fa-solid fa-rotate me-1"></i> {{ o.get_status_display }}</span>
                                     {% endif %}
                                 </h5>
                                 {% if o.tracking_number %}
@@ -69,13 +69,13 @@
                         <div class="position-relative py-3 my-4 d-flex justify-content-between align-items-center w-100 overflow-hidden px-2 bg-light rounded-3" style="border: 1px solid rgba(0,0,0,0.03);">
                             <!-- Connecting Line -->
                             <div class="position-absolute start-0 end-0 bg-secondary-subtle" style="height: 3px; top: 40%; z-index: 1; margin: 0 40px;">
-                                <div class="h-100" style="background-color: var(--accent-color); width: {% if o.status == 'Pending' %}0%{% elif o.status == 'Processing' %}33.3%{% elif o.status == 'Shipped' %}66.6%{% elif o.status == 'Delivered' %}100%{% else %}0%{% endif %}; transition: width 0.8s;"></div>
+                                <div class="h-100" style="background-color: var(--accent-color); width: {% if o.tracking_step >= 5 %}100%{% elif o.tracking_step >= 3 %}66.6%{% elif o.tracking_step >= 2 %}33.3%{% else %}0%{% endif %}; transition: width 0.8s;"></div>
                             </div>
                             
                             <!-- Milestone 1: Placed -->
                             <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
                                 <div class="rounded-circle d-flex align-items-center justify-content-center mb-1" 
-                                     style="width: 28px; height: 28px; background-color: {% if o.status != 'Cancelled' %}var(--accent-color){% else %}#d1d5db{% endif %}; border: 2px solid white; color: white;">
+                                     style="width: 28px; height: 28px; background-color: {% if o.tracking_step >= 1 %}var(--accent-color){% else %}#d1d5db{% endif %}; border: 2px solid white; color: white;">
                                     <i class="fa-solid fa-file-invoice small" style="font-size: 10px;"></i>
                                 </div>
                                 <span class="fw-bold text-dark" style="font-size: 10px;">Placed</span>
@@ -84,28 +84,28 @@
                             <!-- Milestone 2: Processing -->
                             <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
                                 <div class="rounded-circle d-flex align-items-center justify-content-center mb-1" 
-                                     style="width: 28px; height: 28px; background-color: {% if o.status == 'Processing' or o.status == 'Shipped' or o.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.status == 'Processing' or o.status == 'Shipped' or o.status == 'Delivered' %}white{% else %}#9ca3af{% endif %};">
+                                     style="width: 28px; height: 28px; background-color: {% if o.tracking_step >= 2 %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.tracking_step >= 2 %}white{% else %}#9ca3af{% endif %};">
                                     <i class="fa-solid fa-box-open small" style="font-size: 10px;"></i>
                                 </div>
-                                <span class="{% if o.status == 'Processing' or o.status == 'Shipped' or o.status == 'Delivered' %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Processing</span>
+                                <span class="{% if o.tracking_step >= 2 %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Processing</span>
                             </div>
                             
                             <!-- Milestone 3: Shipped -->
                             <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
                                 <div class="rounded-circle d-flex align-items-center justify-content-center mb-1" 
-                                     style="width: 28px; height: 28px; background-color: {% if o.status == 'Shipped' or o.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.status == 'Shipped' or o.status == 'Delivered' %}white{% else %}#9ca3af{% endif %};">
+                                     style="width: 28px; height: 28px; background-color: {% if o.tracking_step >= 3 %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.tracking_step >= 3 %}white{% else %}#9ca3af{% endif %};">
                                     <i class="fa-solid fa-truck small" style="font-size: 10px;"></i>
                                 </div>
-                                <span class="{% if o.status == 'Shipped' or o.status == 'Delivered' %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Shipped</span>
+                                <span class="{% if o.tracking_step >= 3 %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Shipped</span>
                             </div>
                             
                             <!-- Milestone 4: Delivered -->
                             <div class="d-flex flex-column align-items-center position-relative" style="z-index: 2; width: 25%;">
                                 <div class="rounded-circle d-flex align-items-center justify-content-center mb-1" 
-                                     style="width: 28px; height: 28px; background-color: {% if o.status == 'Delivered' %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.status == 'Delivered' %}white{% else %}#9ca3af{% endif %};">
+                                     style="width: 28px; height: 28px; background-color: {% if o.tracking_step >= 5 %}var(--accent-color){% else %}#e5e7eb{% endif %}; border: 2px solid white; color: {% if o.tracking_step >= 5 %}white{% else %}#9ca3af{% endif %};">
                                     <i class="fa-solid fa-check small" style="font-size: 10px;"></i>
                                 </div>
-                                <span class="{% if o.status == 'Delivered' %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Delivered</span>
+                                <span class="{% if o.tracking_step >= 5 %}fw-bold text-dark{% else %}text-muted{% endif %}" style="font-size: 10px;">Delivered</span>
                             </div>
                         </div>
                         

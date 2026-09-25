@@ -1,50 +1,143 @@
 {% extends "index.html" %}
-{% block title %}Add Shipping Coordinates | Shopping_App{% endblock %}
+{% block title %}{% if address_id %}Edit address{% else %}Add address{% endif %} | Shopping_App{% endblock %}
 
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center py-lg-3">
-        <div class="col-lg-6 col-md-8">
+        <div class="col-lg-7 col-md-9">
             <div class="mb-4">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb mb-2 small">
                         <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-muted text-decoration-none">Home</a></li>
-                        <li class="breadcrumb-item"><a href="{% url 'shipping_address_list' %}" class="text-muted text-decoration-none">Logistical Records</a></li>
-                        <li class="breadcrumb-item active" aria-current="page">New Coordinates</li>
+                        <li class="breadcrumb-item"><a href="{% url 'shipping_address_list' %}" class="text-muted text-decoration-none">Addresses</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">{% if address_id %}Edit{% else %}New{% endif %}</li>
                     </ol>
                 </nav>
-                <h2 class="display-font h3">Assign New Coordinates</h2>
+                <h2 class="display-font h3">{% if address_id %}Edit delivery address{% else %}Add a delivery address{% endif %}</h2>
             </div>
 
             <div class="card border-0 premium-card p-4 p-md-5 shadow-sm bg-white">
-                <form method="POST">
-                    {% csrf_token %}
-                    
-                    {% if form.non_field_errors %}
-                        <div class="alert alert-danger rounded-3 small">
-                            {% for error in form.non_field_errors %} {{ error }} {% endfor %}
-                        </div>
-                    {% endif %}
-
+                <div id="form-alert" class="alert alert-danger small d-none"></div>
+                <form id="address-form" novalidate>
                     <div class="row g-3">
-                        {% for field in form %}
-                        <div class="col-12 {% if field.name == 'city' or field.name == 'state' or field.name == 'postal_code' %}col-md-4{% endif %}">
-                            <label class="form-label small fw-bold text-muted">{{ field.label }}</label>
-                            <input type="text" name="{{ field.name }}" class="form-control form-control-premium py-3" required id="{{ field.id_for_label }}" placeholder="{{ field.help_text|striptags }}">
-                            {% if field.errors %}
-                                <div class="text-danger small mt-1">{% for e in field.errors %}{{ e }}{% endfor %}</div>
-                            {% endif %}
+                        <div class="col-md-7">
+                            <label class="form-label small fw-bold text-muted" for="full_name">Full name *</label>
+                            <input id="full_name" class="form-control form-control-premium py-3" maxlength="150" autocomplete="name" required>
+                            <div class="invalid-feedback" data-error="full_name"></div>
                         </div>
-                        {% endfor %}
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted" for="phone">Phone number *</label>
+                            <input id="phone" type="tel" class="form-control form-control-premium py-3" maxlength="20" autocomplete="tel" required>
+                            <div class="invalid-feedback" data-error="phone"></div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted" for="address_line1">Address *</label>
+                            <input id="address_line1" class="form-control form-control-premium py-3" maxlength="255" placeholder="House no., street, area" autocomplete="address-line1" required>
+                            <div class="invalid-feedback" data-error="address_line1"></div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold text-muted" for="address_line2">Address line 2</label>
+                            <input id="address_line2" class="form-control form-control-premium py-3" maxlength="255" placeholder="Landmark, apartment (optional)" autocomplete="address-line2">
+                            <div class="invalid-feedback" data-error="address_line2"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted" for="city">City *</label>
+                            <input id="city" class="form-control form-control-premium py-3" maxlength="100" autocomplete="address-level2" required>
+                            <div class="invalid-feedback" data-error="city"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted" for="state">State *</label>
+                            <input id="state" class="form-control form-control-premium py-3" maxlength="100" autocomplete="address-level1" required>
+                            <div class="invalid-feedback" data-error="state"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted" for="postal_code">Postal code *</label>
+                            <input id="postal_code" class="form-control form-control-premium py-3" maxlength="10" autocomplete="postal-code" required>
+                            <div class="invalid-feedback" data-error="postal_code"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted" for="country">Country *</label>
+                            <input id="country" class="form-control form-control-premium py-3" maxlength="100" value="India" autocomplete="country-name" required>
+                            <div class="invalid-feedback" data-error="country"></div>
+                        </div>
                     </div>
-
-                    <div class="mt-4 pt-3 d-flex gap-2">
-                        <button type="submit" class="btn btn-glow px-4 py-3 flex-grow-1 rounded-3">Save Destination</button>
-                        <a href="{% url 'shipping_address_list' %}" class="btn btn-light px-4 py-3 border-0 text-muted rounded-3">Abort</a>
+                    <div class="mt-4 pt-2 d-flex gap-2">
+                        <button type="submit" id="save-btn" class="btn btn-glow px-4 py-3 flex-grow-1 rounded-3">Save address</button>
+                        <a href="{{ next_url|default:'/addresses/' }}" class="btn btn-light px-4 py-3 border-0 text-muted rounded-3">Cancel</a>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const ADDRESS_ID = {{ address_id|default:"null" }};
+    const API = ADDRESS_ID ? "{% url 'api_address_list' %}" + ADDRESS_ID + "/" : "{% url 'api_address_list' %}";
+    const nextParam = "{{ next_url|escapejs }}";
+    // Only follow same-site relative paths after saving.
+    const NEXT = nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : "{% url 'shipping_address_list' %}";
+    const FIELDS = ['full_name', 'phone', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country'];
+    const REQUIRED = FIELDS.filter(f => f !== 'address_line2');
+    const form = document.getElementById('address-form');
+    const alertBox = document.getElementById('form-alert');
+    const $ = id => document.getElementById(id);
+    const csrf = () => (document.cookie.split('; ').find(r => r.startsWith('csrftoken=')) || '=').split('=')[1];
+
+    function clearErrors() {
+        alertBox.classList.add('d-none');
+        FIELDS.forEach(f => { $(f).classList.remove('is-invalid'); form.querySelector(`[data-error="${f}"]`).textContent = ''; });
+    }
+    function fieldError(field, msg) {
+        $(field).classList.add('is-invalid');
+        form.querySelector(`[data-error="${field}"]`).textContent = msg;
+    }
+
+    async function request(method, data) {
+        const res = await fetch(API, {
+            method, credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRFToken': decodeURIComponent(csrf()) },
+            body: data ? JSON.stringify(data) : undefined,
+        });
+        const body = (res.headers.get('content-type') || '').includes('application/json') ? await res.json() : {};
+        return { ok: res.ok, status: res.status, body };
+    }
+
+    if (ADDRESS_ID) {
+        request('GET').then(({ ok, body }) => {
+            if (!ok) { alertBox.textContent = 'This address could not be loaded.'; alertBox.classList.remove('d-none'); return; }
+            FIELDS.forEach(f => { $(f).value = body[f] || ''; });
+        });
+    }
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        clearErrors();
+        const data = Object.fromEntries(FIELDS.map(f => [f, $(f).value.trim()]));
+        const missing = REQUIRED.filter(f => !data[f]);
+        if (missing.length) { missing.forEach(f => fieldError(f, 'This field is required.')); return; }
+
+        const btn = $('save-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+        try {
+            const { ok, body } = await request(ADDRESS_ID ? 'PUT' : 'POST', data);
+            if (ok) { window.location.href = NEXT; return; }
+            let shown = false;
+            Object.entries(body || {}).forEach(([f, msgs]) => {
+                if (FIELDS.includes(f)) { fieldError(f, [].concat(msgs).join(' ')); shown = true; }
+            });
+            if (!shown) { alertBox.textContent = body.detail || body.error || 'Could not save the address.'; alertBox.classList.remove('d-none'); }
+        } catch (err) {
+            alertBox.textContent = 'Could not reach the server. Check your connection and try again.';
+            alertBox.classList.remove('d-none');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Save address';
+    });
+})();
+</script>
 {% endblock %}

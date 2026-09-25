@@ -1,10 +1,17 @@
-from django.contrib.auth.models import User
+"""Public, read-only SOAP catalogue endpoint (listProducts / getProduct).
+
+It exposes the same public data as GET /api/products/ and performs no
+writes and no per-user actions, so it is exempt from CSRF (SOAP clients
+have no browser session or token). Incoming XML is parsed with defusedxml.
+"""
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.encoding import smart_bytes
 from xml.etree import ElementTree as ET
 
-from .models import Product, Cart, CartItem
+from defusedxml import ElementTree as SafeET
+from defusedxml.common import DefusedXmlException
+
+from .models import Product
 
 SOAP_NS = 'http://schemas.xmlsoap.org/soap/envelope/'
 XML_NS = 'http://www.w3.org/2001/XMLSchema'
@@ -53,9 +60,9 @@ def soap_application(request):
         return HttpResponse(status=405)
 
     try:
-        root = ET.fromstring(request.body or b'')
-    except ET.ParseError as exc:
-        return _build_fault(f'Invalid XML: {exc}')
+        root = SafeET.fromstring(request.body or b'')
+    except (ET.ParseError, DefusedXmlException):
+        return _build_fault('Invalid or unsafe XML')
 
     body = root.find(f'.//{{{SOAP_NS}}}Body')
     if body is None or len(body) == 0:
@@ -104,38 +111,6 @@ def soap_application(request):
         ]:
             field_el = ET.SubElement(response, field_name)
             field_el.text = str(value)
-        return _build_response(response)
-
-    if action == 'addToCart':
-        user_id = _parse_int(action_element.findtext('user_id'))
-        product_id = _parse_int(action_element.findtext('product_id'))
-        quantity = _parse_int(action_element.findtext('quantity'), default=1)
-
-        user = User.objects.filter(id=user_id).first()
-        if not user:
-            return _build_fault(f'User with id={user_id} not found')
-
-        product = Product.objects.filter(id=product_id, is_active=True).first()
-        if not product:
-            return _build_fault(f'Product with id={product_id} not found')
-
-        if quantity < 1:
-            return _build_fault('Quantity must be at least 1')
-
-        if product.stock < quantity:
-            return _build_fault(f'Only {product.stock} items available in stock.')
-
-        cart, _ = Cart.objects.get_or_create(user=user)
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
-        if not created:
-            cart_item.quantity += quantity
-        else:
-            cart_item.quantity = quantity
-        cart_item.save()
-
-        response = ET.Element('addToCartResponse')
-        ET.SubElement(response, 'message').text = f'Added {quantity} of {product.name} to cart.'
-        ET.SubElement(response, 'cart_count').text = str(sum(item.quantity for item in cart.items.all()))
         return _build_response(response)
 
     return _build_fault(f'Unsupported SOAP action: {action}')

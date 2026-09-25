@@ -1,0 +1,277 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}{% if view.kwargs.pk %}Edit product{% else %}Add product{% endif %}{% endblock %}
+{% block heading %}{% if view.kwargs.pk %}Edit product{% else %}Add product{% endif %}{% endblock %}
+{% block actions %}
+<a href="{% url 'adminpanel:products' %}" class="btn btn-light btn-sm"><i class="fa-solid fa-arrow-left me-1"></i> Back to products</a>
+{% endblock %}
+
+{% block content %}
+<form id="product-form" novalidate>
+    <div class="row g-3">
+        <div class="col-xl-8">
+            <div class="ap-card mb-3">
+                <div class="ap-card-head"><h2>Product details</h2></div>
+                <div class="ap-card-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label" for="name">Product name *</label>
+                            <input id="name" name="name" class="form-control" maxlength="200" required>
+                            <div class="invalid-feedback" data-error="name"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="brand">Brand</label>
+                            <input id="brand" name="brand" class="form-control" maxlength="100">
+                            <div class="invalid-feedback" data-error="brand"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="category">Category *</label>
+                            <select id="category" name="category" class="form-select" required><option value="">Select a category</option></select>
+                            <div class="invalid-feedback" data-error="category"></div>
+                            <div class="form-text"><a href="{% url 'adminpanel:categories' %}">Manage categories</a></div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="description">Description *</label>
+                            <textarea id="description" name="description" rows="5" class="form-control" required></textarea>
+                            <div class="invalid-feedback" data-error="description"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ap-card mb-3">
+                <div class="ap-card-head"><h2>Pricing &amp; inventory</h2></div>
+                <div class="ap-card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label" for="price">Price (₹) *</label>
+                            <input id="price" name="price" type="number" min="0.01" step="0.01" class="form-control" required>
+                            <div class="invalid-feedback" data-error="price"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="discount_price">Discount price (₹)</label>
+                            <input id="discount_price" name="discount_price" type="number" min="0.01" step="0.01" class="form-control" placeholder="Optional">
+                            <div class="invalid-feedback" data-error="discount_price"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="stock">Stock quantity *</label>
+                            <input id="stock" name="stock" type="number" min="0" step="1" class="form-control" required>
+                            <div class="invalid-feedback" data-error="stock"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ap-card mb-3">
+                <div class="ap-card-head"><h2>Gallery images</h2></div>
+                <div class="ap-card-body">
+                    <div class="ap-gallery mb-3" id="gallery"></div>
+                    <label class="ap-image-drop d-block" for="images">
+                        <i class="fa-solid fa-images fs-4 d-block mb-1"></i>
+                        Add gallery images <span class="small d-block">PNG / JPG / WebP, up to 5 MB each</span>
+                    </label>
+                    <input id="images" type="file" accept="image/*" multiple class="d-none">
+                    <div class="small text-muted mt-2" id="images-picked"></div>
+                    <div class="text-danger small mt-1" data-error="images"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="ap-card mb-3">
+                <div class="ap-card-head"><h2>Visibility</h2></div>
+                <div class="ap-card-body">
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="is_active" checked>
+                        <label class="form-check-label" for="is_active">Active (visible to customers)</label>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="featured">
+                        <label class="form-check-label" for="featured">Featured on home page</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="is_new_launch">
+                        <label class="form-check-label" for="is_new_launch">New launch (shows the NEW LAUNCH badge)</label>
+                    </div>
+                    <div class="small text-muted mt-3" id="offer-note"></div>
+                </div>
+            </div>
+
+            <div class="ap-card mb-3">
+                <div class="ap-card-head"><h2>Main image</h2></div>
+                <div class="ap-card-body">
+                    <img id="image-preview" class="ap-preview mb-3 d-none" alt="Product image preview">
+                    <label class="ap-image-drop d-block" for="image">
+                        <i class="fa-solid fa-cloud-arrow-up fs-4 d-block mb-1"></i>
+                        <span id="image-label">Upload image</span>
+                    </label>
+                    <input id="image" type="file" accept="image/*" class="d-none">
+                    <button type="button" id="remove-image" class="btn btn-link text-danger p-0 mt-2 d-none">Remove image</button>
+                    <div class="text-danger small mt-1" data-error="image"></div>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary" id="save-btn"><i class="fa-solid fa-floppy-disk me-1"></i> {% if view.kwargs.pk %}Save changes{% else %}Create product{% endif %}</button>
+                {% if view.kwargs.pk %}
+                <button type="button" class="btn btn-outline-danger" id="delete-btn"><i class="fa-regular fa-trash-can me-1"></i> Delete product</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, toast, setBusy, confirmDialog } = Admin;
+    const PRODUCT_ID = {{ view.kwargs.pk|default:"null" }};
+    const LIST_API = '{% url "api_admin_products" %}';
+    const DETAIL_API = PRODUCT_ID ? `${LIST_API}${PRODUCT_ID}/` : null;
+    const f = id => document.getElementById(id);
+    const form = f('product-form');
+    let removeImage = false;
+
+    function clearErrors() {
+        form.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        form.querySelectorAll('[data-error]').forEach(el => { el.textContent = ''; });
+    }
+
+    function showErrors(body) {
+        if (!body || typeof body !== 'object') return false;
+        let shown = false;
+        Object.entries(body).forEach(([field, messages]) => {
+            const box = form.querySelector(`[data-error="${field}"]`);
+            if (!box) return;
+            box.textContent = Array.isArray(messages) ? messages.join(' ') : String(messages);
+            f(field)?.classList.add('is-invalid');
+            shown = true;
+        });
+        return shown;
+    }
+
+    function renderGallery(images) {
+        f('gallery').innerHTML = images.map(img => `
+            <div class="ap-gallery-item">
+                <img src="${esc(img.image)}" alt="">
+                <button type="button" data-image="${img.id}" title="Remove image" aria-label="Remove image"><i class="fa-solid fa-xmark"></i></button>
+            </div>`).join('');
+    }
+
+    function setPreview(url) {
+        f('image-preview').src = url || '';
+        f('image-preview').classList.toggle('d-none', !url);
+        f('remove-image').classList.toggle('d-none', !url);
+        f('image-label').textContent = url ? 'Replace image' : 'Upload image';
+    }
+
+    async function init() {
+        try {
+            const cats = await api('{% url "api_admin_categories" %}');
+            f('category').insertAdjacentHTML('beforeend', cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join(''));
+            if (!cats.length) toast('Create a category before adding products.', 'info');
+        } catch (err) { toast(err.message, 'error'); }
+
+        if (!PRODUCT_ID) return;
+        try {
+            const p = await api(DETAIL_API);
+            ['name', 'brand', 'description', 'price', 'stock'].forEach(k => { f(k).value = p[k] ?? ''; });
+            f('discount_price').value = p.discount_price ?? '';
+            f('category').value = p.category;
+            f('is_active').checked = p.is_active;
+            f('featured').checked = p.featured;
+            f('is_new_launch').checked = p.is_new_launch;
+            f('offer-note').innerHTML = p.offer ? `<i class="fa-solid fa-tag me-1"></i>Live offer: <strong>${esc(p.offer.name)}</strong> (${esc(p.offer.label)}) — selling at ${Admin.money(p.final_price)}` : '';
+            setPreview(p.image);
+            renderGallery(p.images);
+            if (new URLSearchParams(location.search).get('created')) toast('Product created and saved to the catalogue.');
+        } catch (err) {
+            toast(err.message, 'error');
+        }
+    }
+
+    f('image').addEventListener('change', () => {
+        const file = f('image').files[0];
+        if (!file) return;
+        removeImage = false;
+        setPreview(URL.createObjectURL(file));
+    });
+    f('remove-image').addEventListener('click', () => {
+        f('image').value = '';
+        removeImage = true;
+        setPreview(null);
+    });
+    f('images').addEventListener('change', () => {
+        const n = f('images').files.length;
+        f('images-picked').textContent = n ? `${n} image(s) will be uploaded when you save.` : '';
+    });
+
+    f('gallery').addEventListener('click', async e => {
+        const btn = e.target.closest('[data-image]');
+        if (!btn || !await confirmDialog('Remove this gallery image?', 'Remove')) return;
+        try {
+            await api(`${DETAIL_API}images/${btn.dataset.image}/`, { method: 'DELETE' });
+            btn.closest('.ap-gallery-item').remove();
+            toast('Image removed.');
+        } catch (err) { toast(err.message, 'error'); }
+    });
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        clearErrors();
+        const required = ['name', 'category', 'description', 'price', 'stock'];
+        const missing = required.filter(k => !String(f(k).value).trim());
+        if (missing.length) {
+            showErrors(Object.fromEntries(missing.map(k => [k, 'This field is required.'])));
+            return;
+        }
+
+        const data = new FormData();
+        ['name', 'brand', 'category', 'description', 'price', 'stock'].forEach(k => data.append(k, f(k).value.trim()));
+        data.append('discount_price', f('discount_price').value.trim());
+        data.append('is_active', f('is_active').checked ? 'true' : 'false');
+        data.append('featured', f('featured').checked ? 'true' : 'false');
+        data.append('is_new_launch', f('is_new_launch').checked ? 'true' : 'false');
+        if (f('image').files[0]) data.append('image', f('image').files[0]);
+        if (removeImage) data.append('remove_image', 'true');
+        [...f('images').files].forEach(file => data.append('images', file));
+
+        const btn = f('save-btn');
+        setBusy(btn, true);
+        try {
+            const saved = await api(DETAIL_API || LIST_API, { method: DETAIL_API ? 'PATCH' : 'POST', form: data });
+            if (!DETAIL_API) {
+                window.location.href = `{% url 'adminpanel:product_edit' 0 %}`.replace('/0/', `/${saved.id}/`) + '?created=1';
+                return;
+            }
+            f('images').value = '';
+            f('images-picked').textContent = '';
+            removeImage = false;
+            setPreview(saved.image);
+            renderGallery(saved.images);
+            toast('Changes saved.');
+        } catch (err) {
+            if (!showErrors(err.body)) toast(err.message, 'error');
+            else toast('Please fix the highlighted fields.', 'error');
+        } finally {
+            setBusy(btn, false);
+        }
+    });
+
+    f('delete-btn')?.addEventListener('click', async () => {
+        if (!await confirmDialog('Delete this product? If it appears in past orders it will be deactivated instead of deleted.')) return;
+        try {
+            const res = await api(DETAIL_API, { method: 'DELETE' });
+            if (res && res.archived) {
+                f('is_active').checked = false;
+                toast(res.detail, 'info');
+                return;
+            }
+            window.location.href = '{% url "adminpanel:products" %}';
+        } catch (err) { toast(err.message, 'error'); }
+    });
+
+    init();
+})();
+</script>
+{% endblock %}

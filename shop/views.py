@@ -14,11 +14,15 @@ from django.contrib import messages
 from django.db.models import Q, Sum, Count
 from django.http import JsonResponse
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_POST
+from django.core.cache import cache
 from django.core.mail import send_mail
 from django.conf import settings
 from .forms import UserRegisterForm
-from .rbac import RBACMixin, get_user_role, role_required
+from .rbac import RBACMixin, get_user_role, role_required, user_summary
+from . import services
+from .offers import active_offers, attach_offers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
@@ -28,31 +32,41 @@ from .models import (
 )
 
 @login_not_required
+@ensure_csrf_cookie
 def login_view(request):
     """Render the unified authentication page (login + registration)."""
     if request.user.is_authenticated:
         if request.user.is_staff or request.user.is_superuser:
-            return redirect('admin_dashboard')
+            return redirect('adminpanel:dashboard')
         return redirect('home')
     return render(request, 'registration/login.html', {'default_mode': 'login'})
 
 
-@login_not_required
-def register_page_view(request):
-    """Render the unified authentication page with Registration as default mode."""
-    if request.user.is_authenticated:
-        return redirect('home')
-    from .forms import UserRegisterForm
-    form = UserRegisterForm(request.POST or None)
-    return render(request, 'registration/login.html', {
-        'form': form,
-        'default_mode': 'register',
-    })
+LOGIN_ATTEMPT_LIMIT = 10          # attempts
+LOGIN_ATTEMPT_WINDOW = 5 * 60     # seconds, per client IP
 
 
-@csrf_exempt
+def _login_rate_limited(request, scope):
+    """Simple per-IP limiter for the session login endpoints (cache backed)."""
+    from rest_framework.throttling import BaseThrottle
+    # Same client-IP logic as DRF throttling (honours REST_FRAMEWORK NUM_PROXIES),
+    # so a spoofed X-Forwarded-For can't be used to dodge the limit.
+    ip = BaseThrottle().get_ident(request)
+    key = f"login-attempts:{scope}:{ip}"
+    cache.add(key, 0, LOGIN_ATTEMPT_WINDOW)
+    try:
+        attempts = cache.incr(key)
+    except ValueError:  # key expired between add() and incr()
+        cache.set(key, 1, LOGIN_ATTEMPT_WINDOW)
+        attempts = 1
+    return attempts > LOGIN_ATTEMPT_LIMIT
+
+
 def ajax_login_view(request):
+    """Session login used by the customer login page (CSRF-protected)."""
     if request.method == 'POST':
+        if _login_rate_limited(request, 'customer'):
+            return JsonResponse({'success': False, 'error': 'Too many login attempts. Please wait a few minutes and try again.'}, status=429)
         try:
             data = json.loads(request.body)
             email = data.get('email')
@@ -84,13 +98,14 @@ def ajax_login_view(request):
                 
                 redirect_url = None
                 if user.is_staff or user.is_superuser:
-                    redirect_url = '/admin-dashboard/'
+                    redirect_url = '/panel/'
                 
                 refresh = RefreshToken.for_user(user)
                 return JsonResponse({
                     'success': True, 
                     'message': 'Login successful. Forwarding...',
                     'redirect_url': redirect_url,
+                    'user': user_summary(user),
                     'access_token': str(refresh.access_token),
                     'refresh_token': str(refresh)
                 })
@@ -106,17 +121,20 @@ def ajax_login_view(request):
     return JsonResponse({'success': False, 'error': 'Method unavailable.'}, status=405)
 
 
+@ensure_csrf_cookie
 def admin_login_view(request):
     if request.user.is_authenticated:
         if request.user.is_staff or request.user.is_superuser:
-            return redirect('admin_dashboard')
+            return redirect('adminpanel:dashboard')
         return redirect('home')
     return render(request, 'registration/admin_login.html')
 
 
-@csrf_exempt
 def ajax_admin_login_view(request):
+    """Session login used by the admin login page (CSRF-protected)."""
     if request.method == 'POST':
+        if _login_rate_limited(request, 'admin'):
+            return JsonResponse({'success': False, 'error': 'Too many login attempts. Please wait a few minutes and try again.'}, status=429)
         try:
             data = json.loads(request.body)
             email = data.get('email')
@@ -153,7 +171,8 @@ def ajax_admin_login_view(request):
                 return JsonResponse({
                     'success': True,
                     'message': 'Developer Authentication Successful. Connecting to Dashboard...',
-                    'redirect_url': '/admin-dashboard/',
+                    'redirect_url': '/panel/',
+                    'user': user_summary(user),
                     'access_token': str(refresh.access_token),
                     'refresh_token': str(refresh)
                 })
@@ -169,32 +188,25 @@ def ajax_admin_login_view(request):
     return JsonResponse({'success': False, 'error': 'Method unavailable.'}, status=405)
 
 
+@ensure_csrf_cookie
 def register_view(request):
-    """Render the unified authentication page in Registration mode and process the form."""
+    """Render the unified authentication page in Registration mode.
+
+    The form submits to /api/accounts/register/ (email-OTP verification);
+    this view never creates accounts itself.
+    """
     if request.user.is_authenticated:
         return redirect('home')
-    if request.method == 'POST':
-        form = UserRegisterForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            auth_login(request, user)
-            messages.success(request, "Welcome to Shopping_App! Your account has been successfully created.")
-            return redirect('home')
-        # On validation failure, render the unified template in register mode with errors
-        return render(request, 'registration/login.html', {
-            'form': form,
-            'default_mode': 'register',
-        })
-    form = UserRegisterForm()
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
     return render(request, 'registration/login.html', {
-        'form': form,
+        'form': UserRegisterForm(),
         'default_mode': 'register',
     })
 
 
 # ----------------- OTP PASSWORD RESET FLOW ----------------- #
 
-@csrf_exempt
 def forgot_password_view(request):
     """Step 1: Render forgot password page."""
     if request.method == 'GET':
@@ -204,7 +216,6 @@ def forgot_password_view(request):
     return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
 
 
-@csrf_exempt
 def verify_otp_view(request):
     """Step 2: Render OTP verification page."""
     if request.method == 'GET':
@@ -212,7 +223,6 @@ def verify_otp_view(request):
     return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
 
 
-@csrf_exempt
 def reset_password_view(request):
     """Step 3: Render reset password page."""
     if request.method == 'GET':
@@ -228,17 +238,21 @@ class HomeView(LoginRequiredMixin, View):
         latest_products = Product.objects.filter(is_active=True).order_by('-created_at')[:8]
         categories = Category.objects.all()[:6]
         banners = HomeBanner.objects.filter(is_active=True)
+        offers = active_offers()
+        offer_ids = [o.pk for o in offers]
         highlight_products = Product.objects.filter(
-            Q(is_highlight=True) | Q(discount_price__isnull=False),
+            Q(is_highlight=True) | Q(discount_price__isnull=False) | Q(offers__in=offer_ids) | Q(category__offers__in=offer_ids),
             is_active=True
         ).distinct().order_by('-created_at')
-        
+
         context = {
-            'featured_products': featured_products,
-            'latest_products': latest_products,
+            'featured_products': attach_offers(list(featured_products), offers),
+            'latest_products': attach_offers(list(latest_products), offers),
+            'new_launch_products': attach_offers(
+                list(Product.objects.filter(is_active=True, is_new_launch=True).order_by('-created_at')[:8]), offers),
             'categories': categories,
             'banner': banners.first() if banners.exists() else None,
-            'highlight_products': highlight_products
+            'highlight_products': attach_offers(list(highlight_products), offers),
         }
         return render(request, 'shop/home.html', context)
 
@@ -257,6 +271,10 @@ class ProductListView(LoginRequiredMixin, ListView):
         if category_slug:
             queryset = queryset.filter(category__slug=category_slug)
             
+        # New launches only (admin-controlled flag)
+        if self.request.GET.get('new') == '1':
+            queryset = queryset.filter(is_new_launch=True)
+
         # Search Filtering
         query = self.request.GET.get('q')
         if query:
@@ -281,12 +299,16 @@ class ProductListView(LoginRequiredMixin, ListView):
             queryset = queryset.order_by('-price')
         elif sort == 'newest':
             queryset = queryset.order_by('-created_at')
-            
+        else:
+            queryset = queryset.order_by('-created_at', 'pk')
+
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['categories'] = Category.objects.all()
+        # One offer lookup for the whole page instead of one per product.
+        context['products'] = attach_offers(list(context['products']))
         # Pass wishlist product IDs for active hearts in list view
         if self.request.user.is_authenticated:
             context['wishlisted_ids'] = Wishlist.objects.filter(user=self.request.user).values_list('product_id', flat=True)
@@ -299,6 +321,10 @@ class ProductDetailView(LoginRequiredMixin, DetailView):
     model = Product
     template_name = 'shop/product_detail.html'
     context_object_name = 'product'
+
+    def get_queryset(self):
+        # Inactive products are hidden from customers everywhere, including by direct URL.
+        return Product.objects.filter(is_active=True).select_related('category').prefetch_related('images')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -343,199 +369,37 @@ class ShippingAddressListView(LoginRequiredMixin, ListView):
         return ShippingAddress.objects.filter(user=self.request.user)
 
 
-class ShippingAddressCreateView(LoginRequiredMixin, CreateView):
-    model = ShippingAddress
-    template_name = 'shop/address_form.html'
-    fields = ['full_name', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'phone']
-    success_url = '/checkout/'
-
-    def form_valid(self, form):
-        form.instance.user = self.request.user
-        return super().form_valid(form)
+class ShippingAddressFormView(LoginRequiredMixin, View):
+    """Add/edit address page. The form saves through /api/addresses/."""
+    def get(self, request, pk=None):
+        from django.utils.http import url_has_allowed_host_and_scheme
+        if pk is not None:
+            get_object_or_404(ShippingAddress, pk=pk, user=request.user)
+        next_url = request.GET.get('next', '')
+        if not (next_url.startswith('/') and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()})):
+            next_url = ''
+        return render(request, 'shop/address_form.html', {
+            'address_id': pk,
+            'next_url': next_url,
+        })
 
 
 class CheckoutView(LoginRequiredMixin, View):
+    """Checkout page. Order creation and payment happen through
+    /api/orders/, /api/payments/create/ and /api/payments/verify/."""
     def get(self, request):
-        cart, created = Cart.objects.get_or_create(user=request.user)
-        if not cart.items.exists():
+        cart, items, totals = services.cart_summary(request.user)
+        if not items:
             messages.warning(request, "Your cart is empty!")
             return redirect('product_list')
-            
-        addresses = ShippingAddress.objects.filter(user=request.user)
-        return render(request, 'shop/checkout.html', {'cart': cart, 'addresses': addresses})
-
-    @csrf_exempt
-    def post(self, request):
-        cart = get_object_or_404(Cart, user=request.user)
-        if not cart.items.exists():
-            return JsonResponse({'success': False, 'error': 'Your cart is empty!'}, status=400)
-            
-        # Parse JSON or fallback to standard form data
-        try:
-            data = json.loads(request.body)
-            address_id = data.get('address_id')
-        except Exception:
-            address_id = request.POST.get('address_id')
-            
-        if not address_id:
-            return JsonResponse({'success': False, 'error': 'Please select a shipping address.'}, status=400)
-            
-        address = get_object_or_404(ShippingAddress, id=address_id, user=request.user)
-        
-        # 1. Create the Order in database as Pending
-        order = Order.objects.create(
-            user=request.user,
-            shipping_address=address,
-            total_price=cart.get_total(),
-            payment_status=False,
-            status='Pending'
-        )
-        
-        # 2. Map items to OrderItem to lock historical price and quantity
-        for item in cart.items.all():
-            OrderItem.objects.create(
-                order=order,
-                product=item.product,
-                product_name=item.product.name,
-                price=item.product.final_price,
-                quantity=item.quantity
-            )
-            
-        # 3. Create Razorpay Order or trigger Sandbox Mode
-        from django.conf import settings
-        
-        is_sandbox = (not settings.RAZORPAY_KEY_ID or 
-                      not settings.RAZORPAY_KEY_SECRET or 
-                      settings.RAZORPAY_KEY_ID == 'rzp_test_5Nn1fNn1DUMMYKEY' or 
-                      settings.RAZORPAY_KEY_SECRET == 'DUMMYSECRETKEY1234567890' or
-                      settings.RAZORPAY_KEY_ID == 'rzp_test_DUMMY_KEY_ID' or
-                      settings.RAZORPAY_KEY_SECRET == 'DUMMY_KEY_SECRET')
-        
-        if is_sandbox:
-            # Under Sandbox mode, we generate a mock Razorpay Order ID and skip calling Razorpay's servers!
-            mock_order_id = f"order_mock_{uuid.uuid4().hex[:12]}"
-            order.razorpay_order_id = mock_order_id
-            order.save()
-            
-            return JsonResponse({
-                'success': True,
-                'sandbox_mode': True,
-                'razorpay_order_id': mock_order_id,
-                'razorpay_key_id': settings.RAZORPAY_KEY_ID,
-                'amount': int(order.total_price * 100),
-                'currency': 'INR',
-                'order_id': order.id,
-                'customer_name': address.full_name or request.user.get_full_name() or request.user.username,
-                'customer_email': request.user.email or "customer@example.com",
-                'customer_phone': address.phone or "9999999999"
-            })
-            
-        import razorpay
-        try:
-            client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-            amount_in_paise = int(order.total_price * 100)
-            
-            razorpay_order = client.order.create({
-                'amount': 100000000,
-                'currency': 'INR',
-                'payment_capture': '1'
-            })
-            
-            # Save the Razorpay Order ID to our Order model
-            order.razorpay_order_id = razorpay_order['id']
-            order.save()
-            
-            return JsonResponse({
-                'success': True,
-                'sandbox_mode': False,
-                'razorpay_order_id': razorpay_order['id'],
-                'razorpay_key_id': settings.RAZORPAY_KEY_ID,
-                'amount': 100000000,
-                'currency': 'INR',
-                'order_id': order.id,
-                'customer_name': address.full_name or request.user.get_full_name() or request.user.username,
-                'customer_email': request.user.email or "customer@example.com",
-                'customer_phone': address.phone or "9999999999"
-            })
-            
-        except Exception as e:
-            # Clean up the pending order on failure
-            order.delete()
-            return JsonResponse({
-                'success': False,
-                'error': f'Razorpay transaction initiation failed: {str(e)}'
-            }, status=500)
-
-
-@csrf_exempt
-def verify_payment_view(request):
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            razorpay_order_id = data.get('razorpay_order_id')
-            razorpay_payment_id = data.get('razorpay_payment_id')
-            razorpay_signature = data.get('razorpay_signature')
-            order_id = data.get('order_id')
-            
-            if not all([razorpay_order_id, razorpay_payment_id, razorpay_signature, order_id]):
-                return JsonResponse({'success': False, 'error': 'Missing payment verification credentials.'}, status=400)
-                
-            order = get_object_or_404(Order, id=order_id, user=request.user)
-            
-            # Check Sandbox Mode bypass
-            from django.conf import settings
-            is_sandbox = (not settings.RAZORPAY_KEY_ID or 
-                          not settings.RAZORPAY_KEY_SECRET or 
-                          settings.RAZORPAY_KEY_ID == 'rzp_test_5Nn1fNn1DUMMYKEY' or 
-                          settings.RAZORPAY_KEY_SECRET == 'DUMMYSECRETKEY1234567890' or
-                          settings.RAZORPAY_KEY_ID == 'rzp_test_DUMMY_KEY_ID' or
-                          settings.RAZORPAY_KEY_SECRET == 'DUMMY_KEY_SECRET')
-            
-            if is_sandbox and razorpay_order_id.startswith('order_mock_'):
-                # In sandbox mode, bypass cryptographic signature verify
-                pass
-            else:
-                # Verify Signature using Razorpay SDK
-                import razorpay
-                client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-                try:
-                    client.utility.verify_payment_signature({
-                        'razorpay_order_id': razorpay_order_id,
-                        'razorpay_payment_id': razorpay_payment_id,
-                        'razorpay_signature': razorpay_signature
-                    })
-                except Exception:
-                    return JsonResponse({'success': False, 'error': 'Security verification check failed. Payment rejected.'}, status=400)
-                
-            # Update order payment state to successful
-            order.payment_id = razorpay_payment_id
-            order.payment_status = True
-            order.status = 'Processing'
-            order.tracking_number = f"TRK{uuid.uuid4().hex[:10].upper()}"
-            order.save()
-            
-            # Reduce inventory stock
-            for item in order.items.all():
-                product = item.product
-                if product and product.stock >= item.quantity:
-                    product.stock -= item.quantity
-                    product.save()
-                    
-            # Clear user cart items
-            cart, created = Cart.objects.get_or_create(user=request.user)
-            cart.items.all().delete()
-            
-            messages.success(request, f"Success! Your order #{order.id} has been placed. Reference ID: {order.tracking_number}")
-            
-            return JsonResponse({
-                'success': True,
-                'redirect_url': f"/orders/{order.id}/"
-            })
-            
-        except Exception as e:
-            return JsonResponse({'success': False, 'error': f'Verification error: {str(e)}'}, status=500)
-            
-    return JsonResponse({'success': False, 'error': 'Method unavailable.'}, status=405)
+        addresses = ShippingAddress.objects.filter(user=request.user).order_by('-id')
+        return render(request, 'shop/checkout.html', {
+            'cart': cart,
+            'items': items,
+            'totals': totals,
+            'addresses': addresses,
+            'stock_problems': services.validate_stock((i.product, i.quantity) for i in items),
+        })
 
 
 
@@ -644,159 +508,42 @@ class OrderDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         # Ensure users only view their own orders
-        return Order.objects.filter(user=self.request.user)
+        return Order.objects.filter(user=self.request.user).prefetch_related('items__product', 'payments')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        icons = {
+            Order.CONFIRMED: 'fa-file-invoice-dollar', Order.PROCESSING: 'fa-box-open',
+            Order.SHIPPED: 'fa-truck-fast', Order.OUT_FOR_DELIVERY: 'fa-motorcycle',
+            Order.DELIVERED: 'fa-handshake-simple',
+        }
+        labels = dict(Order.STATUS_CHOICES)
+        context['tracking_steps'] = [(code, labels[code], icons[code]) for code in Order.TRACKING_STEPS]
+        return context
+
+
+class OrderConfirmationView(LoginRequiredMixin, DetailView):
+    model = Order
+    template_name = 'shop/order_confirmation.html'
+    context_object_name = 'order'
+
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user).prefetch_related('items__product', 'payments')
+
+
+class ProfilePageView(LoginRequiredMixin, View):
+    """Profile page. Reads/writes through /api/accounts/profile/."""
+    def get(self, request):
+        return render(request, 'shop/profile.html')
 
 
 class AdminDashboardView(RBACMixin, View):
-    """Admin dashboard — accessible by staff and superadmin only."""
+    """Legacy URL — the admin dashboard now lives in the separate admin panel."""
     allowed_roles = ['staff', 'superadmin']
     rbac_redirect_url = 'home'
 
     def get(self, request):
-        import json as json_mod
-        from django.utils import timezone as tz
-
-        total_orders   = Order.objects.count()
-        total_products = Product.objects.count()
-        total_users    = User.objects.count()
-        total_revenue  = Order.objects.filter(payment_status=True).aggregate(rev=Sum('total_price'))['rev'] or 0
-        pending_orders = Order.objects.filter(status='Pending').count()
-        processing_orders = Order.objects.filter(status='Processing').count()
-        shipped_orders = Order.objects.filter(status='Shipped').count()
-        delivered_orders = Order.objects.filter(status='Delivered').count()
-        cancelled_orders = Order.objects.filter(status='Cancelled').count()
-        low_stock      = Product.objects.filter(stock__gt=0, stock__lte=5).count()
-        out_of_stock   = Product.objects.filter(stock=0).count()
-
-        recent_orders    = Order.objects.select_related('user').prefetch_related('items').order_by('-created_at')[:8]
-        recent_customers = User.objects.order_by('-date_joined')[:5]
-        low_stock_products = Product.objects.filter(stock__lte=5, is_active=True).order_by('stock')[:5]
-        top_products = Product.objects.annotate(order_count=Count('orderitem')).order_by('-order_count')[:5]
-
-        # Monthly revenue data for chart (last 6 months)
-        months_labels = []
-        months_data   = []
-        for i in range(5, -1, -1):
-            dt = tz.now() - timedelta(days=i * 30)
-            rev = Order.objects.filter(
-                payment_status=True,
-                created_at__year=dt.year,
-                created_at__month=dt.month
-            ).aggregate(s=Sum('total_price'))['s'] or 0
-            months_labels.append(dt.strftime('%b %Y'))
-            months_data.append(float(rev))
-
-        # Order status distribution for donut chart
-        status_data = [
-            pending_orders, processing_orders, shipped_orders,
-            delivered_orders, cancelled_orders
-        ]
-
-        user_role = get_user_role(request.user)
-
-        context = {
-            'total_orders':      total_orders,
-            'total_products':    total_products,
-            'total_users':       total_users,
-            'total_revenue':     total_revenue,
-            'pending_orders':    pending_orders,
-            'processing_orders': processing_orders,
-            'shipped_orders':    shipped_orders,
-            'delivered_orders':  delivered_orders,
-            'cancelled_orders':  cancelled_orders,
-            'low_stock':         low_stock,
-            'out_of_stock':      out_of_stock,
-            'recent_orders':     recent_orders,
-            'recent_customers':  recent_customers,
-            'low_stock_products': low_stock_products,
-            'top_products':      top_products,
-            'chart_labels':      json_mod.dumps(months_labels),
-            'chart_data':        json_mod.dumps(months_data),
-            'status_data':       json_mod.dumps(status_data),
-            'user_role':         user_role,
-        }
-        return render(request, 'shop/admin_dashboard.html', context)
-
-
-class UserManagementView(RBACMixin, View):
-    """User management — superadmin only."""
-    allowed_roles = ['superadmin']
-    rbac_redirect_url = 'admin_dashboard'
-
-    def get(self, request):
-        users = User.objects.all().order_by('-date_joined')
-        search = request.GET.get('q', '')
-        role_filter = request.GET.get('role', '')
-
-        if search:
-            users = users.filter(
-                Q(username__icontains=search) |
-                Q(email__icontains=search) |
-                Q(first_name__icontains=search) |
-                Q(last_name__icontains=search)
-            )
-        if role_filter == 'superadmin':
-            users = users.filter(is_superuser=True)
-        elif role_filter == 'staff':
-            users = users.filter(is_staff=True, is_superuser=False)
-        elif role_filter == 'customer':
-            users = users.filter(is_staff=False, is_superuser=False)
-
-        users_data = []
-        for u in users:
-            users_data.append({
-                'user': u,
-                'role': get_user_role(u),
-                'orders_count': Order.objects.filter(user=u).count(),
-            })
-
-        context = {
-            'users_data': users_data,
-            'total_users': User.objects.count(),
-            'staff_count': User.objects.filter(is_staff=True, is_superuser=False).count(),
-            'superadmin_count': User.objects.filter(is_superuser=True).count(),
-            'customer_count': User.objects.filter(is_staff=False, is_superuser=False).count(),
-            'search': search,
-            'role_filter': role_filter,
-        }
-        return render(request, 'shop/user_management.html', context)
-
-    def post(self, request):
-        """Toggle staff/superuser flags via AJAX."""
-        if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'error': 'Invalid request'}, status=400)
-        try:
-            data = json.loads(request.body)
-            user_id = data.get('user_id')
-            action  = data.get('action')  # 'make_staff', 'make_superadmin', 'make_customer', 'toggle_active'
-            target  = get_object_or_404(User, id=user_id)
-
-            # Prevent self-demotion
-            if target == request.user and action in ('make_customer', 'toggle_active'):
-                return JsonResponse({'error': 'You cannot demote or deactivate your own account.'}, status=400)
-
-            if action == 'make_staff':
-                target.is_staff = True
-                target.is_superuser = False
-            elif action == 'make_superadmin':
-                target.is_staff = True
-                target.is_superuser = True
-            elif action == 'make_customer':
-                target.is_staff = False
-                target.is_superuser = False
-            elif action == 'toggle_active':
-                target.is_active = not target.is_active
-            else:
-                return JsonResponse({'error': 'Unknown action'}, status=400)
-
-            target.save()
-            return JsonResponse({
-                'success': True,
-                'new_role': get_user_role(target),
-                'is_active': target.is_active,
-            })
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+        return redirect('adminpanel:dashboard')
 
 
 class UserDashboardView(LoginRequiredMixin, View):
@@ -828,7 +575,7 @@ class UserDashboardView(LoginRequiredMixin, View):
         return render(request, 'shop/dashboard.html', context)
 
 
-@csrf_exempt
+@require_POST
 def custom_logout_view(request):
     auth_logout(request)
     messages.success(request, "You have been successfully logged out.")

@@ -260,6 +260,9 @@
             </a>
 
             <div class="dash-nav-section mt-2">Account</div>
+            <a href="{% url 'profile' %}" class="dash-nav-link">
+                <i class="fa-solid fa-user-pen"></i> Profile
+            </a>
             <a href="{% url 'shipping_address_list' %}" class="dash-nav-link">
                 <i class="fa-solid fa-location-dot"></i> Addresses
                 {% if addresses_count > 0 %}<span class="nav-badge">{{ addresses_count }}</span>{% endif %}
@@ -292,8 +295,9 @@
 
         <!-- Welcome Card -->
         <div class="welcome-card mb-4">
-            <div class="welcome-badge">Customer Account</div>
-            <div class="welcome-name">Hello, {{ user.username }}! 👋</div>
+            <div class="welcome-badge">{% if account_role == 'admin' %}Administrator Account{% else %}Customer Account{% endif %}</div>
+            <div class="welcome-name">Welcome, {{ user.get_full_name|default:user.username }}! 👋</div>
+            <div class="welcome-meta mb-1">Role: <strong>{{ account_type }}</strong> · {% if account_role == 'admin' %}You are an Admin — <a href="{% url 'adminpanel:dashboard' %}" class="text-white">open the Admin Panel</a>{% else %}You are a Customer{% endif %}</div>
             <div class="welcome-meta">
                 <i class="fa-regular fa-envelope me-1"></i> {{ user.email }}
                 &nbsp;•&nbsp;
@@ -385,16 +389,16 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            {% if order.status == 'Processing' %}
-                                                <span class="status-badge status-processing"><i class="fa-solid fa-rotate" style="font-size:9px;"></i> {{ order.status }}</span>
-                                            {% elif order.status == 'Shipped' %}
-                                                <span class="status-badge status-shipped"><i class="fa-solid fa-truck" style="font-size:9px;"></i> {{ order.status }}</span>
-                                            {% elif order.status == 'Delivered' %}
-                                                <span class="status-badge status-delivered"><i class="fa-solid fa-check-double" style="font-size:9px;"></i> {{ order.status }}</span>
-                                            {% elif order.status == 'Cancelled' %}
-                                                <span class="status-badge status-cancelled"><i class="fa-solid fa-xmark" style="font-size:9px;"></i> {{ order.status }}</span>
+                                            {% if order.status == 'CANCELLED' %}
+                                                <span class="status-badge status-cancelled"><i class="fa-solid fa-xmark" style="font-size:9px;"></i> {{ order.get_status_display }}</span>
+                                            {% elif order.status == 'DELIVERED' %}
+                                                <span class="status-badge status-delivered"><i class="fa-solid fa-check-double" style="font-size:9px;"></i> {{ order.get_status_display }}</span>
+                                            {% elif order.status == 'SHIPPED' or order.status == 'OUT_FOR_DELIVERY' %}
+                                                <span class="status-badge status-shipped"><i class="fa-solid fa-truck" style="font-size:9px;"></i> {{ order.get_status_display }}</span>
+                                            {% elif order.status == 'PENDING' %}
+                                                <span class="status-badge status-pending">Awaiting payment</span>
                                             {% else %}
-                                                <span class="status-badge status-pending">{{ order.status }}</span>
+                                                <span class="status-badge status-processing"><i class="fa-solid fa-rotate" style="font-size:9px;"></i> {{ order.get_status_display }}</span>
                                             {% endif %}
                                         </td>
                                         <td><strong>₹{{ order.total_price }}</strong></td>

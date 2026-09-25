@@ -6,8 +6,10 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core import signing
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -20,6 +22,9 @@ from .serializers import (
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     PasswordResetVerifySerializer,
+    ProfileSerializer,
+    RegisterSerializer,
+    RegistrationOTPVerifySerializer,
     ResendOTPSerializer,
 )
 from .utils import (
@@ -58,6 +63,20 @@ def _create_pending_user(email):
     logger.debug("forgot-password: created pending account id=%s username=%s for email=%s", user.pk, username, mask_email(email))
     return user
 
+def _pending_registration_user(email):
+    """Return the not-yet-verified account created by register/ for `email`.
+
+    Only matches inactive users that have never logged in and were issued a
+    registration OTP, so an admin-disabled account can never be reactivated
+    through the registration flow.
+    """
+    return User.objects.filter(
+        email__iexact=email,
+        is_active=False,
+        last_login__isnull=True,
+        emailotp__purpose=EmailOTP.REGISTRATION,
+    ).distinct().first()
+
 # Shown for forgot-password/resend regardless of whether the email is
 # registered, and regardless of whether sending actually happened (rate
 # limit, SMTP hiccup, etc.) — never reveal account existence or delivery
@@ -66,8 +85,74 @@ GENERIC_RESET_MESSAGE = "If that email is registered, a reset code has been sent
 
 
 def token_response(user):
+    from shop.rbac import user_summary
     refresh = TokenObtainPairSerializer.get_token(user)
-    return {"access": str(refresh.access_token), "refresh": str(refresh)}
+    return {"access": str(refresh.access_token), "refresh": str(refresh), "user": user_summary(user)}
+
+
+class RegisterView(APIView):
+    """POST /api/accounts/register/
+
+    Body: {"username", "email", "password"}
+
+    Creates an inactive customer account and emails a 6-digit registration
+    OTP to the submitted address. If the email can't be sent the account is
+    rolled back so the user can simply retry. The account is activated by
+    verify-registration-otp/.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            with transaction.atomic():
+                user = serializer.save()
+                issue_otp(user, EmailOTP.REGISTRATION)
+        except OTPDeliveryError as e:
+            logger.error("register: OTP delivery failed for email=%s", mask_email(serializer.validated_data["email"]))
+            error = "Unable to send the verification email. Please try again later."
+            if settings.DEBUG:
+                error = f"SMTP delivery failed: {str(e.__cause__ or e)}."
+            return Response({"success": False, "error": error}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        logger.debug("register: created pending account id=%s for email=%s", user.pk, mask_email(user.email))
+        return Response(
+            {"success": True, "detail": "Account created. A verification OTP has been sent to your email."},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class VerifyRegistrationOTPView(APIView):
+    """POST /api/accounts/verify-registration-otp/
+
+    Body: {"email", "otp"}
+
+    Verifies (and consumes) the latest registration OTP for the pending
+    account, then activates it so the user can log in.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        serializer = RegistrationOTPVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = _pending_registration_user(serializer.validated_data["email"])
+        otp = None
+        if user:
+            otp = EmailOTP.objects.filter(
+                user=user, purpose=EmailOTP.REGISTRATION, used_at__isnull=True,
+            ).order_by("-created_at").first()
+        if not otp or not verify_otp(otp, serializer.validated_data["otp"]):
+            return Response({"success": False, "detail": "Invalid or expired OTP."}, status=400)
+
+        user.is_active = True
+        user.save(update_fields=["is_active"])
+        logger.debug("verify-registration-otp: activated account id=%s", user.pk)
+        return Response({"success": True, "detail": "Account verified successfully. You can now log in."})
 
 
 class LoginView(APIView):
@@ -78,6 +163,8 @@ class LoginView(APIView):
     forgot-password flow; see RequestPasswordResetView below.)
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = LoginSerializer(data={
@@ -101,6 +188,8 @@ class VerifyLoginOTPView(APIView):
     access + refresh tokens.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = OTPVerifySerializer(data=request.data)
@@ -126,6 +215,8 @@ class ResendOTPView(APIView):
     Never reveals whether an email is registered.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = ResendOTPSerializer(data=request.data)
@@ -141,7 +232,10 @@ class ResendOTPView(APIView):
             user, purpose = otp.user, EmailOTP.LOGIN
         else:
             purpose = data.get("purpose") or EmailOTP.PASSWORD_RESET
-            user = User.objects.filter(email__iexact=data["email"], is_active=True).first()
+            if purpose == EmailOTP.REGISTRATION:
+                user = _pending_registration_user(data["email"])
+            else:
+                user = User.objects.filter(email__iexact=data["email"], is_active=True).first()
             if not user:
                 return Response({"detail": GENERIC_RESET_MESSAGE})
 
@@ -194,6 +288,8 @@ class RequestPasswordResetView(APIView):
     used to.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
@@ -240,6 +336,8 @@ class VerifyForgotPasswordOTPView(APIView):
     The OTP itself is never echoed back.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = PasswordResetVerifySerializer(data=request.data)
@@ -282,6 +380,8 @@ class ResetPasswordView(APIView):
     every password-reset OTP for that user so nothing can be reused.
     """
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         # Support both 'token' (sent by reset_password.html) and 'reset_token' (expected by serializer)
@@ -336,3 +436,23 @@ class LogoutView(APIView):
         except (KeyError, ValueError):
             return Response({"detail": "Invalid refresh token."}, status=400)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProfileView(APIView):
+    """GET/PUT/PATCH /api/accounts/profile/ — the signed-in user's own profile only."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(ProfileSerializer(request.user).data)
+
+    def put(self, request):
+        return self._update(request, partial=False)
+
+    def patch(self, request):
+        return self._update(request, partial=True)
+
+    def _update(self, request, partial):
+        serializer = ProfileSerializer(request.user, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(ProfileSerializer(request.user).data)

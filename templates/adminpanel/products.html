@@ -1,0 +1,181 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Products{% endblock %}
+{% block heading %}Products{% endblock %}
+{% block actions %}
+<a href="{% url 'adminpanel:product_add' %}" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i> Add product</a>
+{% endblock %}
+
+{% block content %}
+<div class="ap-card">
+    <div class="ap-card-head">
+        <div class="ap-toolbar w-100">
+            <input type="search" id="f-q" class="form-control ap-search" placeholder="Search name, brand, description…" aria-label="Search products">
+            <select id="f-category" class="form-select" aria-label="Category"><option value="">All categories</option></select>
+            <select id="f-status" class="form-select" aria-label="Status">
+                <option value="">Any status</option><option value="active">Active</option><option value="inactive">Inactive</option>
+            </select>
+            <select id="f-stock" class="form-select" aria-label="Stock">
+                <option value="">Any stock</option><option value="in">In stock</option><option value="low">Low stock</option><option value="out">Out of stock</option>
+            </select>
+            <select id="f-sort" class="form-select" aria-label="Sort">
+                <option value="newest">Newest</option><option value="oldest">Oldest</option><option value="name">Name A–Z</option>
+                <option value="price_low">Price: low → high</option><option value="price_high">Price: high → low</option>
+                <option value="stock_low">Stock: low → high</option>
+            </select>
+        </div>
+    </div>
+    <div class="ap-table-wrap">
+        <table class="ap-table">
+            <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="6" class="ap-loading">Loading…</td></tr></tbody>
+        </table>
+    </div>
+    <div class="ap-card-body d-flex justify-content-between align-items-center border-top" id="pager"></div>
+</div>
+
+<div class="modal fade" id="detail-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4">
+            <div class="modal-header"><h5 class="modal-title fw-bold" id="detail-title">Product</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body" id="detail-body"></div>
+            <div class="modal-footer"><a href="#" id="detail-edit" class="btn btn-primary"><i class="fa-solid fa-pen me-1"></i> Edit</a></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, money, date, activeBadge, stockText, thumb, toast, pagination, confirmDialog, debounce, query } = Admin;
+    const API = '{% url "api_admin_products" %}';
+    const detailApi = id => `${API}${id}/`;
+    const editUrl = id => `{% url 'adminpanel:product_edit' 0 %}`.replace('/0/', `/${id}/`);
+    const params = new URLSearchParams(location.search);
+    const f = id => document.getElementById(id);
+    let page = 1;
+    let rowsById = {};
+
+    ['f-q', 'f-category', 'f-status', 'f-stock', 'f-sort'].forEach(id => {
+        const key = id.slice(2);
+        if (params.get(key)) f(id).value = params.get(key);
+    });
+
+    async function loadCategories() {
+        try {
+            const cats = await api('{% url "api_admin_categories" %}');
+            f('f-category').insertAdjacentHTML('beforeend', cats.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join(''));
+            if (params.get('category')) f('f-category').value = params.get('category');
+        } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function load() {
+        const filters = { q: f('f-q').value.trim(), category: f('f-category').value, status: f('f-status').value, stock: f('f-stock').value, sort: f('f-sort').value };
+        history.replaceState(null, '', location.pathname + query({ ...filters, page: page > 1 ? page : '' }));
+        f('rows').innerHTML = '<tr><td colspan="6" class="ap-loading">Loading…</td></tr>';
+        let data;
+        try {
+            data = await api(API + query({ ...filters, page }));
+        } catch (err) {
+            if (err.status === 404 && page > 1) { page = 1; return load(); }
+            toast(err.message, 'error');
+            return;
+        }
+        rowsById = Object.fromEntries(data.results.map(p => [p.id, p]));
+        f('rows').innerHTML = data.results.length ? data.results.map(p => `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center gap-3">
+                        ${thumb(p.image)}
+                        <div>
+                            <button type="button" class="btn btn-link p-0 fw-semibold text-reset text-decoration-none text-start" data-view="${p.id}">${esc(p.name)}</button>
+                            <div class="small text-muted">${esc(p.brand || '')}${p.brand ? ' · ' : ''}${esc(p.slug)}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>${esc(p.category_name)}</td>
+                <td>
+                    <div class="fw-semibold">${money(p.final_price)}</div>
+                    ${p.discount_price ? `<div class="small text-muted text-decoration-line-through">${money(p.price)}</div>` : ''}
+                </td>
+                <td>${stockText(p.stock)}</td>
+                <td>
+                    <div class="form-check form-switch m-0" title="Toggle active">
+                        <input class="form-check-input" type="checkbox" role="switch" data-toggle="${p.id}" ${p.is_active ? 'checked' : ''} aria-label="Active">
+                    </div>
+                </td>
+                <td class="text-end text-nowrap">
+                    <button type="button" class="btn btn-light btn-icon" data-view="${p.id}" title="View"><i class="fa-regular fa-eye"></i></button>
+                    <a href="${editUrl(p.id)}" class="btn btn-light btn-icon" title="Edit"><i class="fa-solid fa-pen"></i></a>
+                    <button type="button" class="btn btn-light btn-icon text-danger" data-delete="${p.id}" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+                </td>
+            </tr>`).join('') : '<tr><td colspan="6" class="ap-empty"><i class="fa-solid fa-box-open"></i>No products match these filters.</td></tr>';
+        pagination(f('pager'), data, page, p => { page = p; load(); });
+    }
+
+    function showDetail(p) {
+        f('detail-title').textContent = p.name;
+        f('detail-edit').href = editUrl(p.id);
+        const gallery = p.images.map(i => `<img src="${esc(i.image)}" class="ap-thumb" style="width:72px;height:72px" alt="">`).join('');
+        f('detail-body').innerHTML = `
+            <div class="row g-4">
+                <div class="col-md-5">
+                    ${p.image ? `<img src="${esc(p.image)}" class="ap-preview mb-2" alt="">` : '<div class="ap-empty"><i class="fa-regular fa-image"></i>No main image</div>'}
+                    <div class="d-flex flex-wrap gap-2">${gallery}</div>
+                </div>
+                <div class="col-md-7">
+                    <dl class="ap-kv">
+                        <dt>Category</dt><dd>${esc(p.category_name)}</dd>
+                        <dt>Brand</dt><dd>${esc(p.brand || '—')}</dd>
+                        <dt>Price</dt><dd>${money(p.price)}</dd>
+                        <dt>Discount price</dt><dd>${p.discount_price ? money(p.discount_price) : '—'}</dd>
+                        <dt>Selling price</dt><dd class="fw-semibold">${money(p.final_price)}</dd>
+                        <dt>Stock</dt><dd>${stockText(p.stock)}</dd>
+                        <dt>Status</dt><dd>${activeBadge(p.is_active)} ${p.featured ? '<span class="badge-status s-confirmed">Featured</span>' : ''}</dd>
+                        <dt>Slug</dt><dd>${esc(p.slug)}</dd>
+                        <dt>Created</dt><dd>${date(p.created_at)}</dd>
+                        <dt>Updated</dt><dd>${date(p.updated_at)}</dd>
+                    </dl>
+                    <h6 class="fw-bold mt-3">Description</h6>
+                    <p class="text-muted mb-0" style="white-space:pre-line">${esc(p.description)}</p>
+                </div>
+            </div>`;
+        bootstrap.Modal.getOrCreateInstance(f('detail-modal')).show();
+    }
+
+    f('rows').addEventListener('click', async e => {
+        const view = e.target.closest('[data-view]');
+        const del = e.target.closest('[data-delete]');
+        if (view) showDetail(rowsById[view.dataset.view]);
+        if (del) {
+            const p = rowsById[del.dataset.delete];
+            if (!await confirmDialog(`Delete "${p.name}"? Products that appear in past orders are deactivated instead of deleted.`)) return;
+            try {
+                const res = await api(detailApi(p.id), { method: 'DELETE' });
+                toast(res && res.archived ? res.detail : 'Product deleted.', res && res.archived ? 'info' : 'success');
+                load();
+            } catch (err) { toast(err.message, 'error'); }
+        }
+    });
+
+    f('rows').addEventListener('change', async e => {
+        const toggle = e.target.closest('[data-toggle]');
+        if (!toggle) return;
+        toggle.disabled = true;
+        try {
+            await api(detailApi(toggle.dataset.toggle), { method: 'PATCH', data: { is_active: toggle.checked } });
+            toast(toggle.checked ? 'Product is now visible to customers.' : 'Product hidden from customers.');
+        } catch (err) {
+            toggle.checked = !toggle.checked;
+            toast(err.message, 'error');
+        } finally { toggle.disabled = false; }
+    });
+
+    f('f-q').addEventListener('input', debounce(() => { page = 1; load(); }));
+    ['f-category', 'f-status', 'f-stock', 'f-sort'].forEach(id => f(id).addEventListener('change', () => { page = 1; load(); }));
+
+    page = Number(params.get('page')) || 1;
+    loadCategories().then(load);
+})();
+</script>
+{% endblock %}

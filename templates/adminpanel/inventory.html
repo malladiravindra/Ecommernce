@@ -1,0 +1,84 @@
+{% extends "adminpanel/base.html" %}
+{% block title %}Inventory{% endblock %}
+{% block heading %}Inventory{% endblock %}
+
+{% block content %}
+<div class="ap-card">
+    <div class="ap-card-head">
+        <ul class="nav nav-pills gap-1" id="stock-tabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-stock="" type="button">All</button></li>
+            <li class="nav-item"><button class="nav-link" data-stock="low" type="button">Low stock</button></li>
+            <li class="nav-item"><button class="nav-link" data-stock="out" type="button">Out of stock</button></li>
+        </ul>
+        <input type="search" id="f-q" class="form-control ap-search" placeholder="Search products…" aria-label="Search products">
+    </div>
+    <div class="ap-table-wrap">
+        <table class="ap-table">
+            <thead><tr><th>Product</th><th>Category</th><th>Status</th><th>Current stock</th><th style="width:230px">Set stock</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="5" class="ap-loading">Loading…</td></tr></tbody>
+        </table>
+    </div>
+    <div class="ap-card-body d-flex justify-content-between align-items-center border-top" id="pager"></div>
+</div>
+<p class="text-muted small mt-3 mb-0"><i class="fa-solid fa-circle-info me-1"></i>Stock is reduced automatically when a payment is verified and restored when a paid order is cancelled. Adding to cart never reserves stock.</p>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const { api, esc, activeBadge, stockText, thumb, toast, pagination, debounce, query, setBusy } = Admin;
+    const API = '{% url "api_admin_products" %}';
+    const editUrl = id => `{% url 'adminpanel:product_edit' 0 %}`.replace('/0/', `/${id}/`);
+    const f = id => document.getElementById(id);
+    let page = 1, stock = '';
+
+    async function load() {
+        f('rows').innerHTML = '<tr><td colspan="5" class="ap-loading">Loading…</td></tr>';
+        let data;
+        try { data = await api(API + query({ q: f('f-q').value.trim(), stock, sort: 'stock_low', page })); }
+        catch (err) { toast(err.message, 'error'); return; }
+        f('rows').innerHTML = data.results.length ? data.results.map(p => `
+            <tr>
+                <td><div class="d-flex align-items-center gap-2">${thumb(p.image, 36)}<a href="${editUrl(p.id)}" class="fw-semibold text-reset text-decoration-none">${esc(p.name)}</a></div></td>
+                <td class="text-muted">${esc(p.category_name)}</td>
+                <td>${activeBadge(p.is_active)}</td>
+                <td data-current="${p.id}">${stockText(p.stock)}</td>
+                <td>
+                    <form class="input-group input-group-sm" data-stock-form="${p.id}">
+                        <input type="number" min="0" step="1" class="form-control" value="${p.stock}" aria-label="Stock for ${esc(p.name)}" required>
+                        <button class="btn btn-primary" type="submit">Save</button>
+                    </form>
+                </td>
+            </tr>`).join('') : '<tr><td colspan="5" class="ap-empty"><i class="fa-solid fa-circle-check"></i>Nothing to show here.</td></tr>';
+        pagination(f('pager'), data, page, p => { page = p; load(); });
+    }
+
+    f('rows').addEventListener('submit', async e => {
+        const form = e.target.closest('[data-stock-form]');
+        if (!form) return;
+        e.preventDefault();
+        const input = form.querySelector('input');
+        const value = Number(input.value);
+        if (!Number.isInteger(value) || value < 0) { toast('Stock must be a whole number of 0 or more.', 'error'); return; }
+        const btn = form.querySelector('button');
+        setBusy(btn, true, '');
+        try {
+            const p = await api(`${API}${form.dataset.stockForm}/`, { method: 'PATCH', data: { stock: value } });
+            document.querySelector(`[data-current="${p.id}"]`).innerHTML = stockText(p.stock);
+            toast(`Stock for ${p.name} set to ${p.stock}.`);
+        } catch (err) { toast(err.message, 'error'); }
+        finally { setBusy(btn, false); }
+    });
+
+    document.querySelectorAll('#stock-tabs [data-stock]').forEach(tab => tab.addEventListener('click', () => {
+        document.querySelectorAll('#stock-tabs .nav-link').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        stock = tab.dataset.stock;
+        page = 1;
+        load();
+    }));
+    f('f-q').addEventListener('input', debounce(() => { page = 1; load(); }));
+    load();
+})();
+</script>
+{% endblock %}

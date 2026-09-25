@@ -92,13 +92,14 @@
                             <i class="fa-regular fa-user fs-5"></i> Profile
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg rounded-3 p-2 mt-2" style="background-color: var(--card-bg);">
-                            <li class="dropdown-header fw-bold text-dark mb-1">Logged in as:<br><span class="text-accent" style="color: var(--accent-color);">{{ user.username }}</span></li>
+                            <li class="dropdown-header fw-bold text-dark mb-1">Logged in as:<br><span class="text-accent" style="color: var(--accent-color);">{{ user.username }}</span><br><span class="small fw-semibold {% if account_role == 'admin' %}text-danger{% else %}text-success{% endif %}">{% if account_role == 'admin' %}You are an Admin{% else %}You are a Customer{% endif %}</span></li>
                             <li><hr class="dropdown-divider border-secondary opacity-25"></li>
                             {% if user.is_staff or user.is_superuser %}
-                            <li><a class="dropdown-item rounded-2 p-2 py-2 text-primary fw-bold" href="{% url 'admin_dashboard' %}"><i class="fa-solid fa-screwdriver-wrench me-2 text-primary"></i> Developer Portal</a></li>
+                            <li><a class="dropdown-item rounded-2 p-2 py-2 text-primary fw-bold" href="{% url 'adminpanel:dashboard' %}"><i class="fa-solid fa-screwdriver-wrench me-2 text-primary"></i> Admin Panel</a></li>
                             <li><hr class="dropdown-divider border-secondary opacity-25"></li>
                             {% endif %}
                             <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'user_dashboard' %}"><i class="fa-solid fa-gauge me-2 text-muted"></i> Account Dashboard</a></li>
+                            <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'profile' %}"><i class="fa-solid fa-user-pen me-2 text-muted"></i> My Profile</a></li>
                             <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'order_list' %}"><i class="fa-solid fa-box me-2 text-muted"></i>Orders</a></li>
                             <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'order_list' %}"><i class="fa-solid fa-route me-2 text-muted"></i> Track Orders</a></li>
                             <li><a class="dropdown-item rounded-2 p-2 py-2 text-reset" href="{% url 'shipping_address_list' %}"><i class="fa-solid fa-location-dot me-2 text-muted"></i> Manage Addresses</a></li>
