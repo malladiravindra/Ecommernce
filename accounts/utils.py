@@ -1,7 +1,7 @@
 """OTP generation and email delivery for AssetFlow.
 
-Real Gmail SMTP only — nothing here is mocked. The Gmail account configured
-in settings.py (EMAIL_HOST_USER / DEFAULT_FROM_EMAIL) is ONLY ever the SMTP
+Real email delivery only — nothing here is mocked. Production uses the Resend
+HTTPS API (see EMAIL_BACKEND in settings.py); DEFAULT_FROM_EMAIL is ONLY ever the
 sender. Every OTP is delivered to recipient_list=[user_email] — the affected
 user's own registered address — never to the sender account.
 """
@@ -37,7 +37,7 @@ OTP_REQUEST_WINDOW = timedelta(minutes=15)
 
 
 class OTPDeliveryError(Exception):
-    """Raised when Gmail SMTP fails to accept an OTP email."""
+    """Raised when the email backend fails to accept an OTP email."""
 
 
 class OTPRateLimitError(Exception):
@@ -50,7 +50,7 @@ def generate_otp():
 
 
 def send_otp_email(user_email, otp, purpose):
-    """Email `otp` to `user_email` via Gmail SMTP. Never logs the OTP itself."""
+    """Email `otp` to `user_email` via the configured email backend. Never logs the OTP itself."""
     if purpose == EmailOTP.PASSWORD_RESET:
         subject = "AssetFlow Password Reset OTP"
         message = f"""Hello,
@@ -110,12 +110,6 @@ AssetFlow Team
             fail_silently=False,
         )
     except Exception as error:
-        if settings.DEBUG:
-            print("\n" + "="*80)
-            print(f"DEVELOPMENT OTP FOR {user_email} ({purpose}): {otp}")
-            print("="*80 + "\n")
-            logger.warning(f"[AssetFlow OTP] SMTP failed but DEBUG is True. Printing OTP to console and bypassing error: {error!r}")
-            return
         # Full traceback to the terminal — never swallowed. Never logs the
         # OTP or any credential, only the masked recipient and purpose.
         logger.debug(f"[AssetFlow OTP] FAILED to send {purpose} OTP to {masked}: {error!r}")
@@ -123,11 +117,11 @@ AssetFlow Team
         raise OTPDeliveryError from error
 
     if sent_count != 1:
-        logger.debug(f"[AssetFlow OTP] SMTP accepted 0 messages for {purpose} OTP to {masked}")
-        logger.error("SMTP did not accept the OTP email (purpose=%s, to=%s)", purpose, masked)
-        raise OTPDeliveryError("SMTP did not accept the OTP email")
+        logger.debug(f"[AssetFlow OTP] Email backend accepted 0 messages for {purpose} OTP to {masked}")
+        logger.error("Email backend did not accept the OTP email (purpose=%s, to=%s)", purpose, masked)
+        raise OTPDeliveryError("Email backend did not accept the OTP email")
 
-    logger.debug(f"[AssetFlow OTP] Sent {purpose} OTP to {masked} (SMTP accepted {sent_count} message)")
+    logger.debug(f"[AssetFlow OTP] Sent {purpose} OTP to {masked} (email backend accepted {sent_count} message)")
     logger.info("AssetFlow OTP email sent (purpose=%s, to=%s)", purpose, masked)
 
 

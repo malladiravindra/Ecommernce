@@ -117,6 +117,9 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     
+    # Third party
+    'anymail',
+
     # Local apps
     'shop.apps.ShopConfig',
     'accounts',
@@ -304,13 +307,30 @@ SOCIALACCOUNT_PROVIDERS = {
 
 
 # Email System Configuration
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+# Production sends over HTTPS through Resend (django-anymail): hosts such as
+# Render block outbound SMTP, which made registration hang until the worker
+# was killed. SMTP is kept only for local development (DEBUG=True) or when
+# EMAIL_BACKEND is set explicitly. Secrets come only from the environment.
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND") or (
+    "anymail.backends.resend.EmailBackend"
+    if (RESEND_API_KEY or not DEBUG)
+    else "django.core.mail.backends.smtp.EmailBackend"
+)
+ANYMAIL = {
+    "RESEND_API_KEY": RESEND_API_KEY,
+    # (connect, read) seconds — keep a stuck API call well inside the worker timeout.
+    "REQUESTS_TIMEOUT": (5, 15),
+}
+# Local-development SMTP settings (unused by the Resend backend).
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
-# SMTP credentials come only from the environment — never from source code.
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", 10))
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "").replace(" ", "")
+# With Resend this must be an address on a domain verified in Resend, e.g.
+# "Shopping_App <noreply@yourdomain.com>".
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", f"Shopping_App <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "Shopping_App <no-reply@localhost>")
 
 

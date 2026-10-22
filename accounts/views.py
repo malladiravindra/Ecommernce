@@ -111,12 +111,14 @@ class RegisterView(APIView):
             with transaction.atomic():
                 user = serializer.save()
                 issue_otp(user, EmailOTP.REGISTRATION)
-        except OTPDeliveryError as e:
+        except OTPDeliveryError:
             logger.error("register: OTP delivery failed for email=%s", mask_email(serializer.validated_data["email"]))
+            # Details stay in the server log (utils.send_otp_email); the client gets a generic message.
             error = "Unable to send the verification email. Please try again later."
-            if settings.DEBUG:
-                error = f"SMTP delivery failed: {str(e.__cause__ or e)}."
             return Response({"success": False, "error": error}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except OTPRateLimitError:
+            logger.warning("register: rate limit hit for email=%s", mask_email(serializer.validated_data["email"]))
+            return Response({"success": False, "error": "Too many OTP requests. Please try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
         logger.debug("register: created pending account id=%s for email=%s", user.pk, mask_email(user.email))
         return Response(
@@ -248,12 +250,10 @@ class ResendOTPView(APIView):
                 # request — it would leak account existence.
                 return Response({"detail": GENERIC_RESET_MESSAGE})
             return Response({"detail": "Too many OTP requests. Please try again later."}, status=429)
-        except OTPDeliveryError as e:
+        except OTPDeliveryError:
             # Full traceback already logged inside utils.send_otp_email.
             logger.error("resend-otp: OTP delivery failed for user id=%s purpose=%s", user.pk, purpose)
-            detail = "Unable to send the verification email. Check SMTP configuration."
-            if settings.DEBUG:
-                detail = f"SMTP delivery failed: {str(e.__cause__ or e)}. Check settings.py and the server console for full traceback."
+            detail = "Unable to send the verification email. Please try again later."
             return Response({"detail": detail}, status=503)
 
         response = {
@@ -311,15 +311,10 @@ class RequestPasswordResetView(APIView):
             logger.debug(f"[ForgotPassword] Step 2: user found — id={user.pk}, registered email={mask_email(user.email)}")
             try:
                 issue_otp(user, EmailOTP.PASSWORD_RESET)
-            except OTPDeliveryError as e:
+            except OTPDeliveryError:
                 # Logged (with traceback) inside utils.send_otp_email already.
-                # The response to the client stays generic on purpose in production,
-                # but we surface it in debug mode to facilitate troubleshooting.
+                # The response to the client stays generic on purpose, never revealing delivery details.
                 logger.error("forgot-password: OTP delivery failed for user id=%s", user.pk)
-                if settings.DEBUG:
-                    return Response({
-                        "detail": f"SMTP delivery failed: {str(e.__cause__ or e)}. Check settings.py and the server console for full traceback."
-                    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             except OTPRateLimitError:
                 logger.warning("forgot-password: rate limit hit for user id=%s", user.pk)
         return Response({"success": True, "detail": GENERIC_RESET_MESSAGE})

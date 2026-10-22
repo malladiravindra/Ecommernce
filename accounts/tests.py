@@ -203,3 +203,105 @@ class RegistrationApiTests(TestCase):
         response = self.client.post("/api/accounts/resend-otp/", {"email": "banned@example.com", "purpose": "registration"}, format="json")
         self.assertEqual(len(mail.outbox), 0)
         self.assertFalse(User.objects.get(email="banned@example.com").is_active)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class RegistrationEmailFailureTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.payload = {"username": "johndoe123", "email": "john@example.com", "password": "Str0ng!Passw0rd"}
+
+    def _register(self):
+        return self.client.post("/api/accounts/register/", self.payload, format="json")
+
+    def test_email_failure_returns_503_and_rolls_back_everything(self):
+        from unittest import mock
+        from accounts.models import EmailOTP
+        with mock.patch("accounts.utils.send_mail", side_effect=TimeoutError("api down: secret-detail")):
+            response = self._register()
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(response.data["success"])
+        self.assertNotIn("secret-detail", str(response.data))
+        self.assertFalse(User.objects.filter(email="john@example.com").exists())
+        self.assertFalse(EmailOTP.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_retry_after_failed_email_succeeds_and_otp_verifies(self):
+        from unittest import mock
+        with mock.patch("accounts.utils.send_mail", side_effect=TimeoutError("down")):
+            self.assertEqual(self._register().status_code, 503)
+        # Same username + email can register again — no orphaned account blocks it.
+        self.assertEqual(self._register().status_code, 201)
+        otp = _extract_otp(mail.outbox[-1].body)
+        ok = self.client.post("/api/accounts/verify-registration-otp/", {"email": "john@example.com", "otp": otp}, format="json")
+        self.assertEqual(ok.status_code, 200)
+        self.assertTrue(User.objects.get(email="john@example.com").is_active)
+
+    def test_failed_registration_never_touches_a_preexisting_account(self):
+        from unittest import mock
+        User.objects.create_user(username="existing", email="john@example.com", password="x")
+        with mock.patch("accounts.utils.send_mail", side_effect=TimeoutError("down")):
+            response = self._register()
+        self.assertEqual(response.status_code, 400)  # rejected by validation, never reached email
+        self.assertTrue(User.objects.filter(username="existing", email="john@example.com").exists())
+
+
+@override_settings(
+    EMAIL_BACKEND="anymail.backends.resend.EmailBackend",
+    ANYMAIL={"RESEND_API_KEY": "re_test_key", "REQUESTS_TIMEOUT": (5, 15)},
+    DEFAULT_FROM_EMAIL="Shopping_App <noreply@example.com>",
+)
+class ResendBackendRegistrationTests(TestCase):
+    """Registration through the real Resend backend with the HTTP call mocked."""
+
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.payload = {"username": "johndoe123", "email": "john@example.com", "password": "Str0ng!Passw0rd"}
+
+    @staticmethod
+    def _http_response(status_code, body):
+        from unittest import mock
+        import json
+        resp = mock.Mock()
+        resp.status_code = status_code
+        resp.content = json.dumps(body).encode()
+        resp.text = json.dumps(body)
+        resp.json.return_value = body
+        resp.raise_for_status.side_effect = None
+        return resp
+
+    def test_registration_posts_to_resend_https_api(self):
+        from unittest import mock
+        fake = self._http_response(200, {"id": "email_123"})
+        with mock.patch("requests.Session.request", return_value=fake) as request:
+            response = self.client.post("/api/accounts/register/", self.payload, format="json")
+        self.assertEqual(response.status_code, 201)
+        kwargs = request.call_args.kwargs
+        self.assertEqual(kwargs["method"], "POST")
+        self.assertTrue(kwargs["url"].startswith("https://api.resend.com/"))
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer re_test_key")
+        import json
+        self.assertEqual(json.loads(kwargs["data"])["to"], ["john@example.com"])
+        self.assertEqual(kwargs["timeout"], (5, 15))
+
+    def test_resend_api_error_returns_503_without_leaking_details(self):
+        from unittest import mock
+        fake = self._http_response(403, {"message": "domain not verified re_test_key"})
+        with mock.patch("requests.Session.request", return_value=fake):
+            response = self.client.post("/api/accounts/register/", self.payload, format="json")
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn("re_test_key", str(response.data))
+        self.assertFalse(User.objects.filter(email="john@example.com").exists())
+
+    def test_resend_timeout_error_rolls_back_and_returns_503(self):
+        from unittest import mock
+        import requests
+        with mock.patch("requests.Session.request", side_effect=requests.exceptions.ConnectTimeout("Connection timed out")):
+            response = self.client.post("/api/accounts/register/", self.payload, format="json")
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(response.data["success"])
+        self.assertEqual(response.data["error"], "Unable to send the verification email. Please try again later.")
+        self.assertFalse(User.objects.filter(email="john@example.com").exists())
+
