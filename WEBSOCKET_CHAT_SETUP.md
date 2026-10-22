@@ -149,6 +149,7 @@ daphne -b 0.0.0.0 -p 8000 ecommernce.asgi:application
 
 To add a "Message Seller" button to product detail page, add to `product_detail.html`:
 
+{% raw %}
 ```html
 {% if user.is_authenticated %}
     <form method="post" action="{% url 'start_conversation' %}">
@@ -163,6 +164,7 @@ To add a "Message Seller" button to product detail page, add to `product_detail.
     <a href="{% url 'login' %}" class="btn btn-primary">Login to Chat</a>
 {% endif %}
 ```
+{% endraw %}
 
 ## Database Schema
 

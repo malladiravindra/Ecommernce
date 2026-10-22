@@ -56,6 +56,7 @@ Add this button to make it easy to start conversations:
 
 **File: `templates/shop/product_detail.html`**
 
+{% raw %}
 ```html
 <!-- Add this near the product price/actions -->
 <div class="mt-3">
@@ -75,6 +76,7 @@ Add this button to make it easy to start conversations:
     {% endif %}
 </div>
 ```
+{% endraw %}
 
 ## Debugging
 
